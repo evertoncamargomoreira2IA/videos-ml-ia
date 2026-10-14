@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/mva/manufacturing_event_schema.json",
+  "title": "Manufacturing Event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["event_id", "video_id", "station_id", "start_time", "end_time", "duration", "event_type", "category", "value_class", "confidence", "source", "human_verified"],
+  "properties": {
+    "event_id": {"type": "string", "minLength": 1},
+    "video_id": {"type": "string", "minLength": 1},
+    "cycle_id": {"type": ["string", "null"]},
+    "station_id": {"type": "string", "minLength": 1},
+    "operator_id": {"type": ["string", "null"]},
+    "product_id": {"type": ["string", "null"]},
+    "start_time": {"type": "number", "minimum": 0},
+    "end_time": {"type": "number", "minimum": 0},
+    "duration": {"type": "number", "minimum": 0},
+    "event_type": {"enum": ["cycle_start", "cycle_end", "pick_part", "place_part", "assemble", "fasten", "torque", "connect", "disconnect", "inspect", "measure", "test", "search", "walk", "reach", "wait", "talk", "rework", "debug", "remove_part", "replace_part", "error", "unknown"]},
+    "object": {"type": ["string", "null"]},
+    "category": {"type": "string"},
+    "value_class": {"type": "string"},
+    "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+    "source": {"enum": ["vision_model", "manual", "rule"]},
+    "human_verified": {"type": "boolean"},
+    "model_version": {"type": ["string", "null"]}
+  }
+}
