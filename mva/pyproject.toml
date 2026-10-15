@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mva"
-version = "0.1.0"
+version = "0.4.0"
 description = "Núcleo determinístico para análise de eventos de manufatura"
 requires-python = ">=3.10"
 dependencies = ["pydantic>=2", "pandas", "numpy"]

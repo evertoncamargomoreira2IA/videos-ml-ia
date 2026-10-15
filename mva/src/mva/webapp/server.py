@@ -19,6 +19,7 @@ from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 
 from ..catalog import DEFAULT_CATALOG, ROLES, VALUE_CLASSES, Catalog, load_catalog, save_catalog
+from .. import __version__
 from ..io import load_events
 from ..models import EVENT_TYPES, TaktInput
 from ..pipeline import Thresholds, run_analysis
@@ -50,6 +51,31 @@ class SettingsPatch(BaseModel):
     video_fps: float | None = Field(default=None, gt=0)
     thresholds: Thresholds | None = None
     notes: str | None = None
+
+
+class AppSettings(BaseModel):
+    """Preferências da tela Configurações (data/settings.json)."""
+    author: str = ""
+    default_station_id: str = "ST01"
+    default_takt_seconds: float = Field(default=42, gt=0)
+    default_standard_ct_seconds: float | None = Field(default=None, gt=0)
+    default_fps: float = Field(default=30, gt=0)
+    dataset_step: int = Field(default=5, ge=1)
+    dataset_width: int = Field(default=320, ge=0)
+    thresholds: Thresholds = Field(default_factory=Thresholds)
+
+
+class Station(BaseModel):
+    station_id: str = Field(pattern=r"^[A-Za-z0-9_.-]{1,30}$")
+    name: str = ""
+    line: str = ""
+    takt_time_seconds: float | None = Field(default=None, gt=0)
+    standard_cycle_time_seconds: float | None = Field(default=None, gt=0)
+    notes: str = ""
+
+
+class StationList(BaseModel):
+    stations: list[Station] = Field(default_factory=list)
 
 
 class Feedback(BaseModel):
@@ -99,11 +125,19 @@ def _video_meta(path: Path) -> dict:
     return {"video_fps": fps, "video_frame_count": count} if fps > 0 else {}
 
 
-def create_app(data_dir: str | Path) -> FastAPI:
+NO_STORE = {"Cache-Control": "no-store"}
+
+
+def create_app(data_dir: str | Path, seed_demo: bool = False) -> FastAPI:
     catalog_path = Path(data_dir) / "catalog.json"
+    settings_path = Path(data_dir) / "settings.json"
+    stations_path = Path(data_dir) / "stations.json"
     root = Path(data_dir) / "analyses"
     root.mkdir(parents=True, exist_ok=True)
-    app = FastAPI(title="MVA — validação local")
+    app = FastAPI(title="MVA — validação local", version=__version__)
+
+    def app_settings() -> AppSettings:
+        return AppSettings.model_validate(_read_json(settings_path, {}))
 
     def folder(analysis_id: str) -> Path:
         if not re.fullmatch(r"[a-z0-9_]{6,40}", analysis_id):
@@ -161,16 +195,84 @@ def create_app(data_dir: str | Path) -> FastAPI:
         settings["events_updated_at"] = _now()
         return count
 
+    def new_analysis(settings: dict) -> Path:
+        analysis_id = datetime.now().strftime("%Y%m%d_%H%M%S_") + uuid.uuid4().hex[:6]
+        path = root / analysis_id
+        path.mkdir()
+        settings.update({"id": analysis_id, "created_at": _now()})
+        return path
+
+    def create_demo() -> dict:
+        from ..demo import demo_csv, demo_events, demo_video
+
+        settings = AnalysisSettings(name="Demonstração — posto exemplo (vídeo sintético)", station_id="DEMO-01",
+                                    operator_id="OP-DEMO", product_id="PRODUTO-DEMO", takt_time_seconds=42,
+                                    standard_cycle_time_seconds=40,
+                                    notes="Análise de exemplo criada automaticamente para conhecer o programa.").model_dump()
+        path = new_analysis(settings)
+        rows = demo_events()
+        save_events(path, demo_csv(rows, settings["id"], settings["station_id"]), settings)
+        settings.update({"demo": True, "video_fps": 10})
+        _write_json(path / "analysis.json", settings)
+        run(settings["id"])
+
+        def make_video() -> None:
+            # Codificar ~5 min de vídeo leva uns 20 s: roda em segundo plano para a tela abrir logo.
+            tmp = path / "demo_tmp.webm"
+            try:
+                if demo_video(rows, tmp, (426, 240)) and path.exists():
+                    tmp.replace(path / "video.webm")
+                    data = _read_json(path / "analysis.json", {})
+                    data.update({"video_original_name": "demo_posto_exemplo.webm",
+                                 "video_frame_count": max(r["end_frame"] for r in rows) + 10})
+                    _write_json(path / "analysis.json", data)
+            except Exception:  # noqa: BLE001 - sem vídeo a demonstração continua útil
+                tmp.unlink(missing_ok=True)
+
+        app.state.demo_video_thread = threading.Thread(target=make_video, daemon=True)
+        app.state.demo_video_thread.start()
+        return summary(path)
+
     @app.get("/", response_class=HTMLResponse)
     def index():
-        return (STATIC / "index.html").read_text(encoding="utf-8")
+        return HTMLResponse((STATIC / "index.html").read_text(encoding="utf-8"), headers=NO_STORE)
+
+    @app.get("/api/info")
+    def info():
+        return {"version": __version__, "data_dir": str(Path(data_dir).resolve())}
+
+    @app.get("/api/settings")
+    def get_settings():
+        return app_settings().model_dump()
+
+    @app.put("/api/settings")
+    def put_settings(body: AppSettings):
+        _write_json(settings_path, body.model_dump())
+        return body.model_dump()
+
+    @app.get("/api/stations")
+    def get_stations():
+        return StationList.model_validate(_read_json(stations_path, {})).model_dump()
+
+    @app.put("/api/stations")
+    def put_stations(body: StationList):
+        ids = [s.station_id for s in body.stations]
+        dup = {i for i in ids if ids.count(i) > 1}
+        if dup:
+            raise HTTPException(422, f"Posto repetido: {', '.join(sorted(dup))}")
+        _write_json(stations_path, body.model_dump())
+        return body.model_dump()
+
+    @app.post("/api/demo")
+    def demo():
+        return create_demo()
 
     @app.get("/labeler/{analysis_id}", response_class=HTMLResponse)
     def labeler(analysis_id: str):
         folder(analysis_id)
         html = (STATIC / "labeler.html").read_text(encoding="utf-8")
         # Server mode: the labeler loads video/events from the API and saves back.
-        return html.replace("<script>\n(()=>{", f"<script>window.MVA_SERVER={json.dumps({'id': analysis_id})};</script>\n<script>\n(()=>{{", 1)
+        return HTMLResponse(html.replace("<script>\n(()=>{", f"<script>window.MVA_SERVER={json.dumps({'id': analysis_id})};</script>\n<script>\n(()=>{{", 1), headers=NO_STORE)
 
     @app.get("/api/vocabulary")
     def vocabulary():
@@ -204,10 +306,7 @@ def create_app(data_dir: str | Path) -> FastAPI:
                                     takt_time_seconds=takt_time_seconds,
                                     standard_cycle_time_seconds=float(standard_cycle_time_seconds) if standard_cycle_time_seconds.strip() else None
                                     ).model_dump()
-        analysis_id = datetime.now().strftime("%Y%m%d_%H%M%S_") + uuid.uuid4().hex[:6]
-        path = root / analysis_id
-        path.mkdir()
-        settings.update({"id": analysis_id, "created_at": _now()})
+        path = new_analysis(settings)
         try:
             if video is not None and video.filename:
                 save_video(path, video, settings)
@@ -347,14 +446,34 @@ def create_app(data_dir: str | Path) -> FastAPI:
         _write_json(path / "feedback.json", items)
         return record
 
+    if seed_demo and not any(root.iterdir()) and not (Path(data_dir) / ".demo_criada").exists():
+        try:
+            create_demo()
+        finally:
+            (Path(data_dir) / ".demo_criada").write_text(_now(), encoding="utf-8")
     return app
+
+
+def _free_port(host: str, port: int) -> int:
+    """A porta pedida ou a próxima livre (uma janela antiga do MVA pode estar segurando a 8765)."""
+    import socket
+
+    for candidate in range(port, port + 20):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            if sock.connect_ex((host, candidate)) != 0:
+                return candidate
+    return port
 
 
 def serve(data_dir: str, host: str = "127.0.0.1", port: int = 8765, open_browser: bool = False) -> None:
     import uvicorn
 
-    url = f"http://{host}:{port}/"
-    print(f"Interface MVA em {url}  (dados em {Path(data_dir).resolve()})  — Ctrl+C para encerrar")
+    free = _free_port(host, port)
+    if free != port:
+        print(f"A porta {port} está ocupada (provavelmente uma janela antiga do MVA ainda aberta). Usando {free}.")
+    url = f"http://{host}:{free}/"
+    print(f"MVA versão {__version__} em {url}  (dados em {Path(data_dir).resolve()})  — feche esta janela para encerrar")
+    app = create_app(data_dir, seed_demo=True)
     if open_browser:
         threading.Timer(1.5, lambda: webbrowser.open(url)).start()
-    uvicorn.run(create_app(data_dir), host=host, port=port, log_level="warning")
+    uvicorn.run(app, host=host, port=free, log_level="warning")
