@@ -63,6 +63,6 @@ Status: ✅ pronto · 🔄 em andamento · ⏳ próximo · ⬜ planejado
 
 ## Dados que o piloto precisa
 - 3 a 5 vídeos do posto piloto, câmera fixa, 10+ ciclos cada
-- Takt do posto (tempo disponível e demanda)
+- Takt Time e Cycle Time padrão do posto
 - Sequência padrão (eSOP) do posto
 - Para alguns ciclos, cronometragem manual para comparar
