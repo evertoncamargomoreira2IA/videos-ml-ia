@@ -6,18 +6,18 @@
 <title>MVA — Validação</title>
 <link rel="icon" href="data:,">
 <style>
-:root{--bg:#f3f5f8;--card:#fff;--ink:#172033;--muted:#5d6b82;--line:#dce2ea;--accent:#2456c6;--ok:#1d7a46;--warn:#b26a00;--bad:#c0392b;
- --va:#2f6fdb;--nnva:#7aa6ef;--insp:#8e6cc9;--wait:#e0a100;--search:#e0662f;--motion:#22a39a;--transp:#5f8f3e;--rework:#c0392b;--other:#9aa3b2;
+:root{--bg:#f4f6f8;--card:#fff;--ink:#172033;--muted:#64748b;--line:#dce2ea;--accent:#2456c6;--ok:#15803d;--warn:#a16207;--bad:#dc2626;
+ --va:#16a34a;--nnva:#eab308;--insp:#eab308;--wait:#ef4444;--search:#ef4444;--motion:#eab308;--transp:#eab308;--rework:#ef4444;--other:#9aa3b2;
  font-family:system-ui,"Segoe UI",sans-serif;color:var(--ink);background:var(--bg);font-size:14px}
 *{box-sizing:border-box}body{margin:0}
-header{background:#172033;color:#fff;padding:12px 20px;display:flex;align-items:center;gap:16px}
-header a{color:#fff;text-decoration:none;font-weight:600;font-size:17px}header span{color:#aab4c5;font-size:13px}
+header{background:#172033;color:#fff;padding:14px max(20px,calc((100vw - 1260px)/2));display:flex;align-items:center;gap:24px;min-height:62px}
+header a{color:#fff;text-decoration:none;font-weight:650;font-size:17px}header span{color:#aab4c5;font-size:13px}header nav{display:flex;gap:8px;margin-left:auto}header nav a{font-size:13px;padding:8px 12px;border-radius:8px;color:#cbd5e1}header nav a:hover,header nav a.active{background:#334155;color:#fff}
 main{max-width:1300px;margin:0 auto;padding:20px}
 h1{font-size:22px;margin:0 0 4px}h2{font-size:16px;margin:0 0 12px}h3{font-size:14px;margin:14px 0 8px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:16px;box-shadow:0 5px 18px #1720330a}
 .muted{color:var(--muted)}.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.spacer{flex:1}
 .grid{display:grid;gap:14px}.g2{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}.g4{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
-button,.btn{font:inherit;border:1px solid var(--line);background:#fff;border-radius:7px;padding:7px 12px;cursor:pointer;color:var(--ink);text-decoration:none;display:inline-block}
+button,.btn{font:inherit;border:1px solid var(--line);background:#fff;border-radius:8px;padding:8px 13px;cursor:pointer;color:var(--ink);text-decoration:none;display:inline-block;transition:background .15s,box-shadow .15s,transform .15s}button:hover,.btn:hover{box-shadow:0 3px 10px #17203318;transform:translateY(-1px)}
 button.primary,.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}button.ok{border-color:var(--ok);color:var(--ok)}button.bad{border-color:var(--bad);color:var(--bad)}
 button:disabled{opacity:.5;cursor:default}
 input,select,textarea{font:inherit;border:1px solid var(--line);border-radius:6px;padding:7px 9px;background:#fff;color:var(--ink);width:100%}
@@ -27,25 +27,26 @@ table{border-collapse:collapse;width:100%}th,td{border-bottom:1px solid #edf0f4;
 td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
 .pill{display:inline-block;border-radius:99px;padding:2px 9px;font-size:12px;background:#eef2f8;color:var(--muted)}
 .pill.ok{background:#e3f4ea;color:var(--ok)}.pill.warn{background:#fdf1dc;color:var(--warn)}.pill.bad{background:#fbe5e2;color:var(--bad)}.pill.acc{background:#e5edfb;color:var(--accent)}
-.kpi{border:1px solid var(--line);border-radius:9px;padding:12px}.kpi b{display:block;font-size:22px;font-variant-numeric:tabular-nums}.kpi span{font-size:12px;color:var(--muted)}
+.kpi{border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:12px;padding:14px}.kpi:nth-child(4n+1){border-left-color:var(--va)}.kpi:nth-child(4n+2){border-left-color:var(--nnva)}.kpi:nth-child(4n+3){border-left-color:var(--accent)}.kpi b{display:block;font-size:25px;font-variant-numeric:tabular-nums}.kpi span{font-size:12px;color:var(--muted)}
 .steps{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 14px}.step{border:1px solid var(--line);border-radius:8px;padding:8px 12px;background:#fff}.step.done{border-color:#9fd3b4;background:#f1faf4}.step.todo{border-style:dashed}
 .list-item{display:flex;flex-wrap:wrap;gap:14px;align-items:center;padding:12px 0;border-bottom:1px solid #edf0f4}.list-item:last-child{border:0}.list-item a{color:var(--ink);font-weight:600;text-decoration:none}
 .legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:6px}.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
 svg text{font-family:inherit}.chart-wrap{overflow-x:auto}
-.table-wrap{overflow-x:auto}header{flex-wrap:wrap}
+.table-wrap{overflow-x:auto;max-width:100%}.activity-table{min-width:850px}.activity-table input,.activity-table select{min-width:90px}.activity-table input[type=color]{min-width:44px;width:48px;padding:3px;height:36px}.activity-bars{display:grid;gap:10px}.activity-bar{display:grid;grid-template-columns:minmax(90px,180px) 1fr 78px;gap:10px;align-items:center}.activity-bar .track{height:14px;border-radius:99px;background:#eef2f7;overflow:hidden}.activity-bar .fill{height:100%;border-radius:99px}.activity-bar .label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .toast{position:fixed;bottom:18px;right:18px;background:#172033;color:#fff;padding:10px 14px;border-radius:8px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:420px}.toast.show{opacity:1}
 .fb-done{font-size:12px}.err{color:var(--bad)}
-@media (max-width:640px){main{padding:12px}}
+@media (max-width:640px){main{padding:12px}header{padding:12px;gap:10px}header nav{width:100%;margin:0}header span{display:none}.card{padding:15px}.activity-bar{grid-template-columns:minmax(74px,100px) 1fr 64px;font-size:12px}.steps{display:grid;grid-template-columns:1fr 1fr}.g2{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:380px){main{padding:9px}.card{padding:12px}.activity-bar{grid-template-columns:75px 1fr 56px;gap:6px}}
 </style>
 </head>
 <body>
-<header><a href="#/">MVA · Validação de análises</a><span>Vídeo → eventos → ciclos → métricas → sua validação</span></header>
+<header><a href="#/">MVA · Análise de vídeo</a><span>Eventos · ciclos · métricas</span><nav><a href="#/" data-nav="analises">Análises</a><a href="#/atividades" data-nav="atividades">Atividades</a></nav></header>
 <main id="app"></main>
 <div id="toast" class="toast"></div>
 <script>
 'use strict';
 const $app=document.getElementById('app');
-const BUCKET_COLORS={'VA':'--va','Necessary NVA':'--nnva','Inspection':'--insp','Waiting':'--wait','Search':'--search','Motion':'--motion','Transportation':'--transp','Rework':'--rework','Other':'--other'};
+const BUCKET_COLORS={'VA':'--va','NNVA':'--nnva','NVA':'--bad','Outros':'--other','Necessary NVA':'--nnva','Inspection':'--nnva','Waiting':'--bad','Search':'--bad','Motion':'--nnva','Transportation':'--nnva','Rework':'--bad','Other':'--other'};
 const ANOMALY_LABEL={above_takt:'Ciclo acima do takt',above_standard_ct:'Ciclo acima do CT padrão',excessive_search:'Busca excessiva',excessive_waiting:'Espera excessiva',rework_debug:'Retrabalho/debug',incomplete_cycle:'Ciclo incompleto',mad_outlier:'Outlier estatístico (MAD)'};
 const CLASS_LABEL={below:['abaixo do takt','ok'],near:['próximo do takt','acc'],above:['acima do takt','warn'],severely_above:['muito acima do takt','bad']};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -94,7 +95,7 @@ function ctChart(m){
  const W=Math.max(520,cyc.length*46+70),H=230,pl=44,pb=34,pt=12,std=m.takt.standard_cycle_time_seconds,max=Math.max(takt,std||0,...cyc.map(c=>c.duration))*1.15,bw=Math.min(34,(W-pl-10)/cyc.length*.7);
  const y=v=>pt+(H-pt-pb)*(1-v/max),x=i=>pl+(i+.5)*(W-pl-10)/cyc.length;
  const ticks=[0,.25,.5,.75,1].map(f=>f*max);
- let s=`<svg width="${W}" height="${H}" role="img" aria-label="Cycle time por ciclo">`;
+ let s=`<svg viewBox="0 0 ${W} ${H}" width="100%" style="min-width:${W>640?Math.round(W*.7):0}px;max-height:${H+40}px" role="img" aria-label="Cycle time por ciclo">`;
  ticks.forEach(t=>s+=`<line x1="${pl}" x2="${W-10}" y1="${y(t)}" y2="${y(t)}" stroke="#edf0f4"/><text x="${pl-6}" y="${y(t)+4}" font-size="11" text-anchor="end" fill="#5d6b82">${Math.round(t)}</text>`);
  cyc.forEach((c,i)=>{const cls=c.comparison?.classification;const fill=cls==='severely_above'?'var(--bad)':cls==='above'?'var(--wait)':'var(--va)';
   s+=`<rect x="${x(i)-bw/2}" y="${y(c.duration)}" width="${bw}" height="${y(0)-y(c.duration)}" fill="${fill}" rx="3"><title>${c.cycle_id}: ${num(c.duration)} s</title></rect><text x="${x(i)}" y="${y(c.duration)-4}" font-size="11" text-anchor="middle">${num(c.duration)}</text><text x="${x(i)}" y="${H-pb+15}" font-size="11" text-anchor="middle" fill="#5d6b82">${c.cycle_id.replace('cycle_','C')}</text>`});
@@ -103,18 +104,37 @@ function ctChart(m){
 }
 function yamazumiChart(m){
  const ids=Object.keys(m.yamazumi).filter(id=>m.yamazumi[id].cycle_time!=null);if(!ids.length)return'<p class="muted">Sem ciclos completos.</p>';
- const buckets=[...new Set(ids.flatMap(id=>Object.keys(m.yamazumi[id].buckets)))].sort((a,b)=>Object.keys(BUCKET_COLORS).indexOf(a)-Object.keys(BUCKET_COLORS).indexOf(b));
+ const buckets=['VA','NNVA','NVA','Outros'];
  const cols=[...ids.map(id=>({id,label:id.replace('cycle_','C'),b:m.yamazumi[id].buckets})),{id:'avg',label:'Média',b:m.yamazumi_average}];
  const takt=m.takt.takt_time_seconds,W=Math.max(520,cols.length*50+70),H=250,pl=44,pb=34,pt=12;
  const max=Math.max(takt,...cols.map(c=>Object.values(c.b).reduce((a,v)=>a+v,0)))*1.12,bw=Math.min(36,(W-pl-10)/cols.length*.7);
  const y=v=>pt+(H-pt-pb)*(1-v/max),x=i=>pl+(i+.5)*(W-pl-10)/cols.length;
- let s=`<svg width="${W}" height="${H}" role="img" aria-label="Yamazumi por ciclo">`;
+ let s=`<svg viewBox="0 0 ${W} ${H}" width="100%" style="min-width:${W>640?Math.round(W*.7):0}px;max-height:${H+40}px" role="img" aria-label="Yamazumi por ciclo">`;
  [0,.25,.5,.75,1].map(f=>f*max).forEach(t=>s+=`<line x1="${pl}" x2="${W-10}" y1="${y(t)}" y2="${y(t)}" stroke="#edf0f4"/><text x="${pl-6}" y="${y(t)+4}" font-size="11" text-anchor="end" fill="#5d6b82">${Math.round(t)}</text>`);
  cols.forEach((c,i)=>{let acc=0;buckets.forEach(b=>{const v=c.b[b]||0;if(!v)return;s+=`<rect x="${x(i)-bw/2}" y="${y(acc+v)}" width="${bw}" height="${y(acc)-y(acc+v)}" fill="${color(b)}" stroke="#fff" stroke-width="1"><title>${c.label} · ${b}: ${num(v)} s</title></rect>`;acc+=v});
   s+=`<text x="${x(i)}" y="${y(acc)-4}" font-size="11" text-anchor="middle">${num(acc)}</text><text x="${x(i)}" y="${H-pb+15}" font-size="11" text-anchor="middle" fill="#5d6b82" ${c.id==='avg'?'font-weight="600"':''}>${c.label}</text>`});
  s+=`<line x1="${pl}" x2="${W-10}" y1="${y(takt)}" y2="${y(takt)}" stroke="var(--bad)" stroke-dasharray="5 4" stroke-width="1.5"/><text x="${W-12}" y="${y(takt)-5}" font-size="11" text-anchor="end" fill="var(--bad)">Takt</text></svg>`;
- return `<div class="chart-wrap">${s}</div><div class="legend">${buckets.map(b=>`<span><i style="background:${color(b)}"></i>${b}</span>`).join('')}</div>`;
+ const vc=m.catalog?.value_classes||{};return `<div class="chart-wrap">${s}</div><div class="legend">${buckets.map((b,i)=>`<span><i style="background:${color(b)}"></i>${b==='VA'?(vc.VA||'Agrega valor (VA)'):b==='NNVA'?(vc.NNVA||'NVA necessário'):b==='NVA'?(vc.NVA||'Desperdício (NVA)'):'Outros'}</span>`).join('')}</div>`;
 }
+
+function activityChart(m){
+ const rows=m.activities||[];if(!rows.length)return '<p class="muted">Sem atividades rotuladas.</p>';
+ const catalog=m.catalog?.activities||[],byCode=Object.fromEntries(catalog.map(a=>[a.code,a])),max=Math.max(0.01,...rows.map(a=>+a.mean_per_cycle_seconds||0));
+ const cls={VA:'Agrega valor (VA)',NNVA:'NVA necessário',NVA:'Desperdício (NVA)'};
+ return `<div class="activity-bars">${rows.slice().sort((a,b)=>(b.mean_per_cycle_seconds||0)-(a.mean_per_cycle_seconds||0)).map(a=>{const meta=byCode[a.code]||{},v=+a.mean_per_cycle_seconds||0,c=meta.color||({VA:'#16a34a',NNVA:'#eab308',NVA:'#ef4444'}[meta.value_class]||'#9aa3b2');return `<div class="activity-bar"><span class="label" title="${esc(a.label)}">${esc(a.label)}</span><div class="track"><div class="fill" style="width:${Math.max(1,v/max*100)}%;background:${esc(c)}"></div></div><span>${num(v)} s <small class="muted">${esc(cls[meta.value_class]||'Outros')}</small></span></div>`}).join('')}</div>`;
+}
+
+async function viewActivities(){
+ const data=await api('/api/catalog');let activities=data.activities||[];
+ const className={VA:'Agrega valor (VA)',NNVA:'NVA necessário',NVA:'Desperdício (NVA)'},roles=data.roles||{'':'—',wait:'Espera',search:'Busca',rework:'Retrabalho'};
+ const row=a=>`<tr><td><input type="color" data-k="color" value="${esc(a.color||'#9aa3b2')}"></td><td><input data-k="label" value="${esc(a.label)}"></td><td><input data-k="code" value="${esc(a.code)}"></td><td><select data-k="value_class">${['VA','NNVA','NVA'].map(c=>`<option value="${c}" ${a.value_class===c?'selected':''}>${className[c]}</option>`).join('')}</select></td><td><input data-k="key" maxlength="1" value="${esc(a.key||'')}"></td><td><select data-k="role">${Object.entries(roles).map(([k,v])=>`<option value="${esc(k)}" ${a.role===k?'selected':''}>${esc(v)}</option>`).join('')}</select></td><td><input data-k="description" value="${esc(a.description||'')}"></td><td><button class="bad" data-remove>Excluir</button></td></tr>`;
+ $app.innerHTML=`<h1>Atividades</h1><p class="muted">VA agrega valor, NVA necessário (movimentação, inspeção), desperdício (espera, procura).</p><section class="card"><div class="table-wrap"><table class="activity-table"><thead><tr><th>Cor</th><th>Rótulo</th><th>Código</th><th>Classe</th><th>Tecla</th><th>Papel</th><th>Descrição</th><th></th></tr></thead><tbody id="activityRows">${activities.map(row).join('')}</tbody></table></div><p class="err" id="catalogError"></p><div class="row"><button id="addActivity">+ Nova atividade</button><span class="spacer"></span><button id="resetCatalog">Restaurar padrão</button><button class="primary" id="saveCatalog">Salvar</button></div></section>`;
+ const body=document.getElementById('activityRows');body.onclick=e=>{if(e.target.closest('[data-remove]'))e.target.closest('tr').remove()};
+ document.getElementById('addActivity').onclick=()=>{const label='Nova atividade',code=slug(label);body.insertAdjacentHTML('beforeend',row({label,code,value_class:'VA',color:'#16a34a',key:'',role:'',description:''}));};
+ document.getElementById('saveCatalog').onclick=async()=>{const values=[...body.rows].map(tr=>Object.fromEntries([...tr.querySelectorAll('[data-k]')].map(el=>[el.dataset.k,el.value])));try{await api('/api/catalog',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({activities:values})});toast('Catálogo salvo');route()}catch(e){document.getElementById('catalogError').textContent=e.message}};
+ document.getElementById('resetCatalog').onclick=async()=>{if(!confirm('Restaurar o catálogo padrão?'))return;try{await api('/api/catalog/reset',{method:'POST'});toast('Catálogo padrão restaurado');route()}catch(e){document.getElementById('catalogError').textContent=e.message}};
+}
+function slug(s){return String(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'')||'atividade'}
 
 // ---------- Detalhe ----------
 async function viewAnalysis(id){
@@ -132,7 +152,8 @@ async function viewAnalysis(id){
   <label class="btn">${a.has_video?'Trocar':'Enviar'} vídeo<input type="file" id="vid" accept="video/*" hidden></label>
   <label class="btn">Importar CSV de eventos<input type="file" id="csv" accept=".csv,text/csv" hidden></label>
   ${a.has_events?`<a class="btn" href="/api/analyses/${id}/events" download="${id}_events.csv">Baixar CSV</a>`:''}</div>
-  <p class="muted">Na rotulagem: <b>S</b> início do ciclo, <b>E</b> fim, <b>1</b> pick, <b>3</b> assemble, <b>4</b> fasten, <b>8</b> inspect, <b>Q</b> search, <b>A</b> wait, <b>D</b> rework. Salva sozinho.</p>
+  <p class="muted">Atalhos: <b>S/E</b> início/fim do ciclo, <b>I/O</b> início/fim do intervalo, teclas das atividades para rotular, <b>←/→</b> avançar um frame. Salva sozinho.</p>
+  <div class="dataset-box" style="border-top:1px solid var(--line);margin-top:16px;padding-top:14px"><h3>Dataset para Machine Learning</h3><div class="row"><label class="f" style="width:160px">1 a cada N frames<input type="number" id="datasetStep" min="1" step="1" value="5"></label><button class="primary" id="exportDataset" ${a.has_video?'':'disabled'}>Exportar frames rotulados</button><span class="muted" id="datasetStatus">Carregando resumo…</span></div><div id="datasetSummary" class="muted" style="margin-top:8px"></div></div>
  </section>
  <section class="card"><h2>Parâmetros</h2><form id="params"><div class="fields">
   <label class="f">Takt Time (s)<input name="takt_time_seconds" type="number" step="any" min="0.01" required value="${a.takt_time_seconds}"></label>
@@ -151,6 +172,7 @@ async function viewAnalysis(id){
   ${feedback.filter(f=>f.target_type==='general').reverse().map(f=>`<p class="fb-done">“${esc(f.comment)}” <span class="muted">— ${esc(f.author||'sem nome')}, ${new Date(f.created_at).toLocaleString('pt-BR')}</span></p>`).join('')}
  </section>`;
  document.getElementById('author').onchange=e=>setAuthor(e.target.value);
+ loadDataset(id);document.getElementById('exportDataset').onclick=()=>exportDataset(id);
  document.getElementById('del').onclick=async()=>{if(!confirm('Excluir esta análise, o vídeo e as validações? Não dá para desfazer.'))return;await api(`/api/analyses/${id}`,{method:'DELETE'});location.hash='#/'};
  document.getElementById('vid').onchange=async e=>{const fd=new FormData();fd.append('video',e.target.files[0]);toast('Enviando vídeo…');try{await api(`/api/analyses/${id}/video`,{method:'PUT',body:fd});toast('Vídeo salvo');route()}catch(err){toast('Erro: '+err.message)}};
  document.getElementById('csv').onchange=async e=>{try{const r=await api(`/api/analyses/${id}/events`,{method:'PUT',headers:{'Content-Type':'text/csv'},body:await e.target.files[0].text()});toast(r.event_count+' eventos importados');route()}catch(err){toast('CSV inválido: '+err.message)}};
@@ -167,7 +189,7 @@ function renderResults(id,m,last){
  const firstEvt={};(m.events||[]).forEach(e=>{if(e.cycle_id&&!(e.cycle_id in firstEvt))firstEvt[e.cycle_id]=e.start_time});
  return `<section class="card"><div class="row"><h2 style="margin:0">3. Resultado</h2><span class="spacer"></span><a class="btn" href="/api/analyses/${id}/report">Baixar relatório (.md)</a></div>
  <div class="grid g4" style="margin-top:12px"><div class="kpi"><span>Takt</span><b>${num(takt)} s</b></div>${std?`<div class="kpi"><span>CT padrão</span><b>${num(std)} s</b></div>`:''}<div class="kpi"><span>CT médio medido</span><b>${num(st.mean)} s</b></div>${std&&st.mean!=null?`<div class="kpi"><span>CT médio vs padrão</span><b class="${st.mean>std*1.05?'err':''}">${st.mean>=std?'+':''}${num(st.mean-std)} s (${num(100*st.mean/std,0)}%)</b></div>`:''}${st.mean!=null?`<div class="kpi"><span>CT médio vs takt</span><b class="${st.mean>takt?'err':''}">${num(100*st.mean/takt,0)}% do takt</b></div>`:''}<div class="kpi"><span>CT mediana · P90</span><b>${num(st.median)} · ${num(st.p90)} s</b></div><div class="kpi"><span>Ciclos completos</span><b>${st.n}</b></div><div class="kpi"><span>Ciclos acima do takt</span><b>${above}</b></div><div class="kpi"><span>Anomalias</span><b>${m.anomalies.length}</b></div></div></section>
- <div class="grid g2"><section class="card"><h2>Cycle time por ciclo</h2>${ctChart(m)}</section><section class="card"><h2>Yamazumi (s por categoria)</h2>${yamazumiChart(m)}</section></div>
+ <div class="grid g2"><section class="card"><h2>Cycle time por ciclo</h2>${ctChart(m)}</section><section class="card"><h2>Yamazumi (s por categoria)</h2>${yamazumiChart(m)}</section><section class="card"><h2>Tempo por atividade (s/ciclo)</h2>${activityChart(m)}</section></div>
  <section class="card"><h2>4. Valide as anomalias</h2><p class="muted">Confirme o que é real, rejeite falsos alarmes. “Ver no vídeo” abre a rotulagem no início do ciclo.</p>
  ${m.anomalies.length?`<div class="table-wrap"><table><thead><tr><th>Anomalia</th><th>Ciclo</th><th class="n">Valor</th><th>Evidência</th><th>Sua avaliação</th></tr></thead><tbody>${m.anomalies.map((an,i)=>{const key=an.anomaly_type+'@'+an.cycle_ids.join(','),f=last['anomaly:'+key],cid=an.cycle_ids[0];
   return `<tr><td><b>${ANOMALY_LABEL[an.anomaly_type]||an.anomaly_type}</b><div class="muted">${esc(an.description)}</div></td><td>${esc(an.cycle_ids.join(', '))}<div><a href="/labeler/${id}?t=${firstEvt[cid]??0}">Ver no vídeo</a></div></td><td class="n">${an.value!=null?num(an.value)+(an.anomaly_type==='mad_outlier'?' z':' s'):'—'}${an.threshold!=null?`<div class="muted">limite ${num(an.threshold)}</div>`:''}</td><td><span class="pill">${an.evidence_class}</span><div class="muted" style="font-size:12px">${esc(an.event_ids.slice(0,6).join(', '))}${an.event_ids.length>6?'…':''}</div></td>
@@ -185,8 +207,17 @@ function bindFeedback(id){
  document.querySelectorAll('[data-manual]').forEach(inp=>inp.onchange=async()=>{if(inp.value==='')return;await sendFeedback(id,{target_type:'manual_ct',target_id:inp.dataset.manual,value:+inp.value});toast('Cronometragem registrada');route()});
 }
 
+function datasetSummary(d){
+ const el=document.getElementById('datasetSummary'),status=document.getElementById('datasetStatus');if(!el)return;
+ status.textContent=`${d.images_saved||0} imagens · ${d.labeled_frames||0} frames rotulados`;
+ const parts=(d.per_activity||[]).map(a=>`${esc(a.label||a.code)}: ${a.images||0}`).join(' · ');
+ el.innerHTML=`${parts||'Nenhuma imagem exportada.'}${d.folder?`<div style="overflow-wrap:anywhere">Pasta: <code>${esc(d.folder)}</code></div>`:''}<div><a href="/api/analyses/${encodeURIComponent(location.hash.slice(4))}/dataset.zip">Baixar .zip</a></div>`;
+}
+async function loadDataset(id){try{const d=await api(`/api/analyses/${id}/dataset`);if(d.images_saved==null){const s=document.getElementById('datasetStatus');if(s)s.textContent='Nenhum dataset exportado ainda.';return}datasetSummary(d)}catch(e){const s=document.getElementById('datasetStatus');if(s)s.textContent=e.message==='404'?'Nenhum dataset exportado ainda.':'Resumo indisponível'}}
+async function exportDataset(id){const btn=document.getElementById('exportDataset'),step=Math.max(1,parseInt(document.getElementById('datasetStep').value,10)||5);btn.disabled=true;try{const d=await api(`/api/analyses/${id}/dataset?step=${step}&width=320`,{method:'POST'});datasetSummary(d);toast('Dataset exportado')}catch(e){toast('Erro ao exportar: '+e.message)}finally{btn.disabled=false}}
+
 // ---------- Router ----------
-async function route(){const h=location.hash||'#/';try{if(h==='#/nova')viewNew();else if(h.startsWith('#/a/'))await viewAnalysis(h.slice(4));else await viewList()}catch(e){$app.innerHTML=`<section class="card"><h2>Algo deu errado</h2><p class="err">${esc(e.message)}</p><a class="btn" href="#/">Voltar</a></section>`}}
+async function route(){const h=location.hash||'#/';document.querySelectorAll('[data-nav]').forEach(a=>a.classList.toggle('active',a.dataset.nav===(h==='#/atividades'?'atividades':'analises')));try{if(h==='#/nova')viewNew();else if(h==='#/atividades')await viewActivities();else if(h.startsWith('#/a/'))await viewAnalysis(h.slice(4));else await viewList()}catch(e){$app.innerHTML=`<section class="card"><h2>Algo deu errado</h2><p class="err">${esc(e.message)}</p><a class="btn" href="#/">Voltar</a></section>`}}
 addEventListener('hashchange',route);route();
 </script>
 </body>

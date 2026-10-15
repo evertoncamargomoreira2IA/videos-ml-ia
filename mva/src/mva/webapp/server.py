@@ -322,8 +322,7 @@ def create_app(data_dir: str | Path) -> FastAPI:
     @app.get("/api/analyses/{analysis_id}/dataset")
     def dataset_summary(analysis_id: str):
         summary_file = folder(analysis_id) / "dataset" / "summary.json"
-        if not summary_file.exists():
-            raise HTTPException(404, "Dataset ainda não exportado")
+        # 200 vazio em vez de 404: a tela consulta isso sempre que abre a análise.
         return _read_json(summary_file, {})
 
     @app.get("/api/analyses/{analysis_id}/dataset.zip")

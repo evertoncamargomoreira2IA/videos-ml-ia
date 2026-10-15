@@ -7,7 +7,7 @@ Status: ✅ pronto · 🔄 em andamento · ⏳ próximo · ⬜ planejado
 
 1. Dê duplo clique em `iniciar.bat`. O navegador abre em http://127.0.0.1:8765/.
 2. Crie uma **Nova análise**: nome, posto, **Takt Time**, **Cycle Time padrão** (opcional) e o vídeo.
-3. Clique em **Abrir rotulagem** e marque os eventos pelo teclado (`S` início do ciclo, `E` fim, `1` pick, `3` assemble, `4` fasten, `8` inspect, `Q` search, `A` wait, `D` rework). Salva sozinho.
+3. Clique em **Abrir rotulagem**. Ande frame a frame (←/→, Shift = 10 frames), marque `S` início e `E` fim do ciclo e aperte a tecla da atividade (`1` Montar, `2` Encaixar, `5` Pegar/colocar, `6` Movimentação, `9` Esperar...). Para um trecho exato: `I` no frame inicial, `O` no final e a tecla da atividade. Salva sozinho.
 4. Volte para a análise e clique em **Salvar e rodar análise**.
 5. Valide:
    - **Anomalias:** confirmar ou rejeitar, com comentário.
@@ -38,6 +38,13 @@ Status: ✅ pronto · 🔄 em andamento · ⏳ próximo · ⬜ planejado
 - [x] Resultado: KPIs, gráfico de CT vs takt, Yamazumi
 - [x] Validação: confirmar/rejeitar anomalias, CT manual vs sistema, observações (histórico append-only)
 - [ ] **Everton:** rodar com 1 vídeo real do posto piloto e anotar o que falta
+
+## Sprint 4a — Rotulagem por frame e visual novo ✅ (aguardando validação)
+- [x] Catálogo de atividades editável (tela Atividades): VA, NVA necessário, desperdício, cor, tecla, papel nas anomalias
+- [x] Rotulagem frame a frame com linha do tempo colorida e seleção de intervalo I–O
+- [x] Yamazumi por VA / NVA necessário / desperdício e gráfico de tempo por atividade
+- [x] Exportar frames rotulados como dataset de ML (pasta por atividade + frame_labels.csv + .zip)
+- [x] Visual novo da interface
 
 ## Sprint 4 — Robustez do piloto ⏳
 - [ ] Editar os limites de ciclo direto na timeline (arrastar início/fim)
