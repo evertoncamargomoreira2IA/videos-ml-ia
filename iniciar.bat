@@ -3,7 +3,8 @@ rem Inicia a interface local de validacao do MVA. Duplo clique neste arquivo.
 chcp 65001 >nul
 setlocal EnableExtensions
 set "ROOT=%~dp0"
-set "VENV=%LOCALAPPDATA%\mva\venv"
+rem Fora do AppData: o Python da Microsoft Store redireciona AppData para outra pasta.
+set "VENV=%USERPROFILE%\.mva\venv"
 set "VPY=%VENV%\Scripts\python.exe"
 set "REQ=%ROOT%mva\requirements.txt"
 
