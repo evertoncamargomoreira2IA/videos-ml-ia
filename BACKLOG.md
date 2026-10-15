@@ -6,7 +6,7 @@ Status: ✅ pronto · 🔄 em andamento · ⏳ próximo · ⬜ planejado
 ## Como validar cada entrega (passo a passo)
 
 1. Dê duplo clique em `iniciar.bat`. O navegador abre em http://127.0.0.1:8765/.
-2. Crie uma **Nova análise**: nome, posto, tempo disponível, demanda e o vídeo.
+2. Crie uma **Nova análise**: nome, posto, **Takt Time**, **Cycle Time padrão** (opcional) e o vídeo.
 3. Clique em **Abrir rotulagem** e marque os eventos pelo teclado (`S` início do ciclo, `E` fim, `1` pick, `3` assemble, `4` fasten, `8` inspect, `Q` search, `A` wait, `D` rework). Salva sozinho.
 4. Volte para a análise e clique em **Salvar e rodar análise**.
 5. Valide:
@@ -33,7 +33,8 @@ Status: ✅ pronto · 🔄 em andamento · ⏳ próximo · ⬜ planejado
 - [x] `iniciar.bat`: cria o ambiente Python e abre o navegador (instala o Python via uv se faltar)
 - [x] Lista de análises, criação com upload de vídeo ou CSV
 - [x] Rotulagem integrada à análise (salva no servidor local; "Ver no vídeo" pula para o ciclo)
-- [x] Parâmetros editáveis: takt, limites de busca/espera, faixas de takt
+- [x] Parâmetros editáveis: Takt Time e CT padrão informados direto, limites de busca/espera, faixas de takt
+- [x] Comparação de cada ciclo e do CT médio com o takt e com o CT padrão (anomalia "acima do CT padrão")
 - [x] Resultado: KPIs, gráfico de CT vs takt, Yamazumi
 - [x] Validação: confirmar/rejeitar anomalias, CT manual vs sistema, observações (histórico append-only)
 - [ ] **Everton:** rodar com 1 vídeo real do posto piloto e anotar o que falta

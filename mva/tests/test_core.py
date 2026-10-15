@@ -105,3 +105,10 @@ def test_csv_with_bom_from_labeler(tmp_path):
     p = tmp_path / "bom.csv"
     p.write_bytes("﻿event_id,video_id,station_id,start_time,end_time,duration,event_type,category,value_class,confidence,source,human_verified\r\nx,v,s,0,0,0,cycle_start,marker,NA,1,manual,true\r\n".encode("utf-8"))
     assert load_events(p)[0].event_id == "x"
+
+
+def test_takt_direct_or_from_demand():
+    assert TaktInput(takt_time_seconds=40).takt_time_seconds == 40
+    assert TaktInput(available_time_seconds=3600, customer_demand_units=90).takt_time_seconds == 40
+    with pytest.raises(ValueError):
+        TaktInput(standard_cycle_time_seconds=38)

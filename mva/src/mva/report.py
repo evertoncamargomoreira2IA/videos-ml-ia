@@ -3,9 +3,15 @@ from .metrics import classify_cycle_time
 from .yamazumi import yamazumi, yamazumi_average
 
 
+def _takt_line(takt: TaktInput) -> str:
+    if takt.available_time_seconds and takt.customer_demand_units:
+        return f"- Takt: {takt.takt_time_seconds:.2f} s ({takt.available_time_seconds:g} s / {takt.customer_demand_units:g} unidades)."
+    return f"- Takt informado: {takt.takt_time_seconds:.2f} s."
+
+
 def render_report(cycles: list[Cycle], events: list[Event], stats: CycleMetrics, takt: TaktInput, anomalies: list[AnomalyFlag]) -> str:
     y = yamazumi(cycles, events)
-    lines = ["# Relatório de análise de manufatura", "", "## Resumo", f"- Ciclos completos: {stats.n}; ciclos incompletos: {sum(not c.complete for c in cycles)}.", f"- Takt calculado: {takt.takt_time_seconds:.2f} s ({takt.available_time_seconds:g} s / {takt.customer_demand_units:g} unidades).", f"- Cycle Time médio: {stats.mean:.2f} s." if stats.mean is not None else "- Cycle Time médio: sem ciclos completos.", "", "## Ciclos", "| Ciclo | Início (s) | Fim (s) | CT (s) | Estado | Comparação takt |", "|---|---:|---:|---:|---|---|"]
+    lines = ["# Relatório de análise de manufatura", "", "## Resumo", f"- Ciclos completos: {stats.n}; ciclos incompletos: {sum(not c.complete for c in cycles)}.", _takt_line(takt), *([f"- CT padrão: {takt.standard_cycle_time_seconds:.2f} s."] if takt.standard_cycle_time_seconds else []), f"- Cycle Time médio: {stats.mean:.2f} s." if stats.mean is not None else "- Cycle Time médio: sem ciclos completos.", "", "## Ciclos", "| Ciclo | Início (s) | Fim (s) | CT (s) | Estado | Comparação takt |", "|---|---:|---:|---:|---|---|"]
     for c in cycles:
         comp = classify_cycle_time(c.duration, takt.takt_time_seconds) if c.complete and c.duration is not None else None
         lines.append(f"| {c.cycle_id} | {c.start_time:.2f} | {c.end_time if c.end_time is not None else '—'} | {c.duration if c.duration is not None else '—'} | {'completo' if c.complete else 'incompleto'} | {comp['classification'] if comp else '—'} |")

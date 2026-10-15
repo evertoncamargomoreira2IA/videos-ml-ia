@@ -16,7 +16,7 @@ def client(tmp_path):
 
 
 def create(client, **files):
-    data = {"name": "Posto 3", "station_id": "ST03", "available_time_seconds": "25200", "customer_demand_units": "600"}
+    data = {"name": "Posto 3", "station_id": "ST03", "takt_time_seconds": "42", "standard_cycle_time_seconds": ""}
     r = client.post("/api/analyses", data=data, files=files)
     assert r.status_code == 200, r.text
     return r.json()
@@ -38,7 +38,7 @@ def test_full_flow_events_run_feedback(client):
 
 def test_thresholds_change_results(client):
     a = create(client, events=("ev.csv", SAMPLE.read_bytes(), "text/csv"))
-    client.patch(f"/api/analyses/{a['id']}", json={"available_time_seconds": 30000, "thresholds": {"search_seconds": 20}})
+    client.patch(f"/api/analyses/{a['id']}", json={"takt_time_seconds": 50, "thresholds": {"search_seconds": 20}})
     m = client.post(f"/api/analyses/{a['id']}/run").json()
     assert m["takt"]["takt_time_seconds"] == 50
     assert "excessive_search" not in {x["anomaly_type"] for x in m["anomalies"]}
@@ -74,3 +74,27 @@ def test_labeler_served_in_server_mode_and_bad_ids(client):
     assert client.get("/labeler/../../etc").status_code == 404
     assert client.get("/api/analyses/nao_existe_123").status_code == 404
     assert "MVA" in client.get("/").text
+
+
+def test_standard_cycle_time_comparisons(client):
+    a = create(client, events=("ev.csv", SAMPLE.read_bytes(), "text/csv"))
+    client.patch(f"/api/analyses/{a['id']}", json={"standard_cycle_time_seconds": 40})
+    m = client.post(f"/api/analyses/{a['id']}/run").json()
+    assert m["takt"]["standard_cycle_time_seconds"] == 40
+    slow = {c["cycle_id"]: c["vs_standard"] for c in m["cycles"] if c["vs_standard"]}
+    assert slow["cycle_005"]["deviation_seconds"] == 15 and slow["cycle_001"]["deviation_seconds"] == 0
+    assert {x["cycle_ids"][0] for x in m["anomalies"] if x["anomaly_type"] == "above_standard_ct"} == {"cycle_005", "cycle_006"}
+    assert round(m["summary"]["mean_ct_vs_standard_seconds"], 2) == 3.57
+    client.patch(f"/api/analyses/{a['id']}", json={"clear_standard_cycle_time": True})
+    m = client.post(f"/api/analyses/{a['id']}/run").json()
+    assert m["takt"]["standard_cycle_time_seconds"] is None and "above_standard_ct" not in {x["anomaly_type"] for x in m["anomalies"]}
+
+
+def test_old_analysis_with_available_time_still_runs(client, tmp_path):
+    import json
+    a = create(client, events=("ev.csv", SAMPLE.read_bytes(), "text/csv"))
+    cfg = tmp_path / "analyses" / a["id"] / "analysis.json"
+    data = json.loads(cfg.read_text(encoding="utf-8"))
+    data.pop("takt_time_seconds"); data.update(available_time_seconds=25200, customer_demand_units=500)
+    cfg.write_text(json.dumps(data), encoding="utf-8")
+    assert client.post(f"/api/analyses/{a['id']}/run").json()["takt"]["takt_time_seconds"] == 50.4

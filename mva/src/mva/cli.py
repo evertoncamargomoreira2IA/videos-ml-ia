@@ -6,8 +6,10 @@ from .models import TaktInput
 from .pipeline import run_analysis
 
 
-def analyze(events_path: str, available_time: float, demand: float, out_path: str) -> None:
-    takt = TaktInput(available_time_seconds=available_time, customer_demand_units=demand)
+def analyze(events_path: str, available_time: float | None, demand: float | None, out_path: str,
+            takt_time: float | None = None, standard_ct: float | None = None) -> None:
+    takt = TaktInput(takt_time_seconds=takt_time, available_time_seconds=available_time, customer_demand_units=demand,
+                     standard_cycle_time_seconds=standard_ct)
     metrics, report = run_analysis(load_events(events_path), takt)
     out = Path(out_path)
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -20,8 +22,10 @@ def main(argv=None) -> int:
     sub = parser.add_subparsers(dest="command", required=True)
     p = sub.add_parser("analyze")
     p.add_argument("--events", required=True)
-    p.add_argument("--available-time", required=True, type=float)
-    p.add_argument("--demand", required=True, type=float)
+    p.add_argument("--takt", type=float, help="Takt time em segundos (ou use --available-time e --demand)")
+    p.add_argument("--standard-ct", type=float, help="Cycle Time padrão do posto em segundos")
+    p.add_argument("--available-time", type=float)
+    p.add_argument("--demand", type=float)
     p.add_argument("--out", required=True)
     probe = sub.add_parser("probe", help="Exibe metadados de um vídeo")
     probe.add_argument("video")
@@ -43,7 +47,7 @@ def main(argv=None) -> int:
         return 0
     try:
         if args.command == "analyze":
-            analyze(args.events, args.available_time, args.demand, args.out)
+            analyze(args.events, args.available_time, args.demand, args.out, args.takt, args.standard_ct)
         elif args.command == "probe":
             # OpenCV only loads for video commands, so analyze works without it.
             from .video import probe_video, video_id_for

@@ -64,12 +64,19 @@ class Cycle(BaseModel):
 
 
 class TaktInput(BaseModel):
-    available_time_seconds: float = Field(gt=0)
-    customer_demand_units: float = Field(gt=0)
+    """Metas do posto: takt direto ou calculado (tempo disponível ÷ demanda), mais o CT padrão opcional."""
+    takt_time_seconds: float | None = Field(default=None, gt=0)
+    available_time_seconds: float | None = Field(default=None, gt=0)
+    customer_demand_units: float | None = Field(default=None, gt=0)
+    standard_cycle_time_seconds: float | None = Field(default=None, gt=0)
 
-    @property
-    def takt_time_seconds(self) -> float:
-        return self.available_time_seconds / self.customer_demand_units
+    @model_validator(mode="after")
+    def resolve_takt(self):
+        if self.takt_time_seconds is None:
+            if self.available_time_seconds is None or self.customer_demand_units is None:
+                raise ValueError("Informe o takt time ou o tempo disponível e a demanda")
+            self.takt_time_seconds = self.available_time_seconds / self.customer_demand_units
+        return self
 
 
 class CycleMetrics(BaseModel):

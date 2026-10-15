@@ -31,8 +31,8 @@ class AnalysisSettings(BaseModel):
     station_id: str = "ST01"
     operator_id: str = ""
     product_id: str = ""
-    available_time_seconds: float = Field(default=25200, gt=0)
-    customer_demand_units: float = Field(default=600, gt=0)
+    takt_time_seconds: float = Field(default=42, gt=0)
+    standard_cycle_time_seconds: float | None = Field(default=None, gt=0)
     thresholds: Thresholds = Field(default_factory=Thresholds)
     notes: str = ""
 
@@ -42,8 +42,9 @@ class SettingsPatch(BaseModel):
     station_id: str | None = None
     operator_id: str | None = None
     product_id: str | None = None
-    available_time_seconds: float | None = Field(default=None, gt=0)
-    customer_demand_units: float | None = Field(default=None, gt=0)
+    takt_time_seconds: float | None = Field(default=None, gt=0)
+    standard_cycle_time_seconds: float | None = Field(default=None, gt=0)
+    clear_standard_cycle_time: bool = False
     thresholds: Thresholds | None = None
     notes: str | None = None
 
@@ -72,6 +73,14 @@ def _write_json(path: Path, data) -> None:
     tmp.replace(path)
 
 
+def takt_input(settings: dict) -> TaktInput:
+    # Análises antigas guardavam tempo disponível e demanda em vez do takt.
+    if not settings.get("takt_time_seconds") and settings.get("available_time_seconds"):
+        settings["takt_time_seconds"] = settings["available_time_seconds"] / settings["customer_demand_units"]
+    return TaktInput(takt_time_seconds=settings["takt_time_seconds"],
+                     standard_cycle_time_seconds=settings.get("standard_cycle_time_seconds"))
+
+
 def create_app(data_dir: str | Path) -> FastAPI:
     root = Path(data_dir) / "analyses"
     root.mkdir(parents=True, exist_ok=True)
@@ -98,7 +107,7 @@ def create_app(data_dir: str | Path) -> FastAPI:
             "video_filename": data.get("video_original_name") if video else None,
             "has_events": events_file.exists(),
             "event_count": max(0, len(events_file.read_text(encoding="utf-8-sig").strip().splitlines()) - 1) if events_file.exists() else 0,
-            "takt_time_seconds": data["available_time_seconds"] / data["customer_demand_units"],
+            "takt_time_seconds": takt_input(data).takt_time_seconds,
             "analyzed": metrics is not None,
             "result_stale": metrics is not None and data.get("events_updated_at", "") > data.get("analyzed_at", ""),
             "feedback_count": len(_read_json(path / "feedback.json", [])),
@@ -153,12 +162,13 @@ def create_app(data_dir: str | Path) -> FastAPI:
 
     @app.post("/api/analyses")
     async def create_analysis(name: str = Form(...), station_id: str = Form("ST01"), operator_id: str = Form(""),
-                              product_id: str = Form(""), available_time_seconds: float = Form(25200),
-                              customer_demand_units: float = Form(600), video: UploadFile | None = File(None),
+                              product_id: str = Form(""), takt_time_seconds: float = Form(42),
+                              standard_cycle_time_seconds: str = Form(""), video: UploadFile | None = File(None),
                               events: UploadFile | None = File(None)):
         settings = AnalysisSettings(name=name, station_id=station_id, operator_id=operator_id, product_id=product_id,
-                                    available_time_seconds=available_time_seconds,
-                                    customer_demand_units=customer_demand_units).model_dump()
+                                    takt_time_seconds=takt_time_seconds,
+                                    standard_cycle_time_seconds=float(standard_cycle_time_seconds) if standard_cycle_time_seconds.strip() else None
+                                    ).model_dump()
         analysis_id = datetime.now().strftime("%Y%m%d_%H%M%S_") + uuid.uuid4().hex[:6]
         path = root / analysis_id
         path.mkdir()
@@ -182,7 +192,9 @@ def create_app(data_dir: str | Path) -> FastAPI:
     def update_analysis(analysis_id: str, patch: SettingsPatch):
         path = folder(analysis_id)
         settings = _read_json(path / "analysis.json", {})
-        settings.update(patch.model_dump(exclude_none=True, mode="json"))
+        settings.update(patch.model_dump(exclude_none=True, exclude={"clear_standard_cycle_time"}, mode="json"))
+        if patch.clear_standard_cycle_time:
+            settings["standard_cycle_time_seconds"] = None
         AnalysisSettings.model_validate(settings)
         _write_json(path / "analysis.json", settings)
         return summary(path)
@@ -228,7 +240,7 @@ def create_app(data_dir: str | Path) -> FastAPI:
         settings = _read_json(path / "analysis.json", {})
         try:
             events = load_events(path / "events.csv")
-            takt = TaktInput(available_time_seconds=settings["available_time_seconds"], customer_demand_units=settings["customer_demand_units"])
+            takt = takt_input(settings)
             metrics, report = run_analysis(events, takt, Thresholds.model_validate(settings.get("thresholds", {})))
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc

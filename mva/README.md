@@ -5,7 +5,7 @@ Requer Python 3.10 ou superior.
 ```bash
 pip install -e .
 python -m pytest -q
-python -m mva analyze --events examples/sample_events.csv --available-time 25200 --demand 600 --out relatorio.md
+python -m mva analyze --events examples/sample_events.csv --takt 42 --standard-ct 40 --out relatorio.md
 ```
 
 A CLI grava o relatório Markdown indicado e `metrics.json` na mesma pasta.
