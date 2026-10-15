@@ -38,6 +38,8 @@ def test_demo_seeded_once_with_results(tmp_path):
     c2 = TestClient(create_app(tmp_path, seed_demo=True))  # deleted demo is not recreated
     assert c2.get("/api/analyses").json() == []
     assert c2.post("/api/demo").json()["analyzed"]
+    # O vídeo da demonstração é gravado numa thread; esperar evita abortar o OpenCV na saída do Python.
+    c2.app.state.demo_video_thread.join(timeout=120)
 
 
 def test_free_port_skips_busy_port():
