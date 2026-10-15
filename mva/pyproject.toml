@@ -4,14 +4,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mva"
-version = "0.1.0"
+version = "0.4.0"
 description = "Núcleo determinístico para análise de eventos de manufatura"
 requires-python = ">=3.10"
 dependencies = ["pydantic>=2", "pandas", "numpy"]
 
 [project.optional-dependencies]
-dev = ["pytest", "opencv-python-headless"]
 video = ["opencv-python-headless"]
+web = ["fastapi>=0.115", "uvicorn>=0.30", "python-multipart>=0.0.9"]
+dev = ["pytest", "httpx", "opencv-python-headless", "fastapi>=0.115", "uvicorn>=0.30", "python-multipart>=0.0.9"]
 
 [project.scripts]
 mva = "mva.cli:main"
@@ -21,6 +22,9 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+mva = ["webapp/static/*.html"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

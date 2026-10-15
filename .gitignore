@@ -11,3 +11,9 @@ Thumbs.db
 mva/relatorio.md
 mva/metrics.json
 mva/saida/
+mva_dados/
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.webm
