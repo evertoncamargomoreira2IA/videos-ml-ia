@@ -1,0 +1,8 @@
+# Dependências para rodar a interface local (iniciar.bat usa este arquivo).
+pydantic>=2
+pandas
+numpy
+fastapi>=0.115
+uvicorn>=0.30
+python-multipart>=0.0.9
+opencv-python-headless

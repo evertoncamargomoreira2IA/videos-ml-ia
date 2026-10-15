@@ -1,0 +1,279 @@
+"""Servidor local da interface de validação (FastAPI).
+
+Cada análise vive em <data>/analyses/<id>/ com arquivos simples, legíveis e versionáveis:
+analysis.json (configuração), video.*, events.csv, metrics.json, relatorio.md e feedback.json.
+"""
+from __future__ import annotations
+
+import json
+import re
+import shutil
+import threading
+import uuid
+import webbrowser
+from datetime import datetime, timezone
+from pathlib import Path
+
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
+from pydantic import BaseModel, Field
+
+from ..io import load_events
+from ..models import EVENT_TYPES, TaktInput
+from ..pipeline import Thresholds, run_analysis
+
+STATIC = Path(__file__).parent / "static"
+VIDEO_EXTENSIONS = {".mp4", ".mov", ".avi", ".mkv", ".webm", ".m4v"}
+
+
+class AnalysisSettings(BaseModel):
+    name: str = Field(min_length=1)
+    station_id: str = "ST01"
+    operator_id: str = ""
+    product_id: str = ""
+    available_time_seconds: float = Field(default=25200, gt=0)
+    customer_demand_units: float = Field(default=600, gt=0)
+    thresholds: Thresholds = Field(default_factory=Thresholds)
+    notes: str = ""
+
+
+class SettingsPatch(BaseModel):
+    name: str | None = None
+    station_id: str | None = None
+    operator_id: str | None = None
+    product_id: str | None = None
+    available_time_seconds: float | None = Field(default=None, gt=0)
+    customer_demand_units: float | None = Field(default=None, gt=0)
+    thresholds: Thresholds | None = None
+    notes: str | None = None
+
+
+class Feedback(BaseModel):
+    target_type: str = Field(pattern="^(anomaly|cycle|event|manual_ct|general)$")
+    target_id: str = ""
+    verdict: str = Field(default="", pattern="^(|confirmado|rejeitado|corrigir)$")
+    value: float | None = None
+    comment: str = ""
+    author: str = ""
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="microseconds")
+
+
+def _read_json(path: Path, default):
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else default
+
+
+def _write_json(path: Path, data) -> None:
+    # Write-then-rename so a crash never leaves half a JSON file behind.
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp.replace(path)
+
+
+def create_app(data_dir: str | Path) -> FastAPI:
+    root = Path(data_dir) / "analyses"
+    root.mkdir(parents=True, exist_ok=True)
+    app = FastAPI(title="MVA — validação local")
+
+    def folder(analysis_id: str) -> Path:
+        if not re.fullmatch(r"[a-z0-9_]{6,40}", analysis_id):
+            raise HTTPException(404, "Análise não encontrada")
+        path = root / analysis_id
+        if not (path / "analysis.json").exists():
+            raise HTTPException(404, "Análise não encontrada")
+        return path
+
+    def video_path(path: Path) -> Path | None:
+        return next((p for p in path.glob("video.*") if p.suffix.lower() in VIDEO_EXTENSIONS), None)
+
+    def summary(path: Path) -> dict:
+        data = _read_json(path / "analysis.json", {})
+        metrics = _read_json(path / "metrics.json", None)
+        events_file = path / "events.csv"
+        video = video_path(path)
+        data.update({
+            "has_video": video is not None,
+            "video_filename": data.get("video_original_name") if video else None,
+            "has_events": events_file.exists(),
+            "event_count": max(0, len(events_file.read_text(encoding="utf-8-sig").strip().splitlines()) - 1) if events_file.exists() else 0,
+            "takt_time_seconds": data["available_time_seconds"] / data["customer_demand_units"],
+            "analyzed": metrics is not None,
+            "result_stale": metrics is not None and data.get("events_updated_at", "") > data.get("analyzed_at", ""),
+            "feedback_count": len(_read_json(path / "feedback.json", [])),
+        })
+        if metrics:
+            data["statistics"] = metrics["statistics"]
+            data["anomaly_count"] = len(metrics["anomalies"])
+        return data
+
+    def save_video(path: Path, upload: UploadFile, settings: dict) -> None:
+        ext = Path(upload.filename or "").suffix.lower()
+        if ext not in VIDEO_EXTENSIONS:
+            raise HTTPException(400, f"Formato de vídeo não aceito: {ext or '(sem extensão)'}")
+        for old in path.glob("video.*"):
+            old.unlink()
+        with (path / f"video{ext}").open("wb") as out:
+            shutil.copyfileobj(upload.file, out, 1024 * 1024)
+        settings["video_original_name"] = upload.filename
+
+    def save_events(path: Path, text: str, settings: dict) -> int:
+        target = path / "events.csv"
+        tmp = path / "events.tmp.csv"
+        tmp.write_text(text, encoding="utf-8")
+        try:
+            count = len(load_events(tmp))
+        except ValueError as exc:
+            tmp.unlink()
+            raise HTTPException(422, str(exc)) from exc
+        tmp.replace(target)
+        settings["events_updated_at"] = _now()
+        return count
+
+    @app.get("/", response_class=HTMLResponse)
+    def index():
+        return (STATIC / "index.html").read_text(encoding="utf-8")
+
+    @app.get("/labeler/{analysis_id}", response_class=HTMLResponse)
+    def labeler(analysis_id: str):
+        folder(analysis_id)
+        html = (STATIC / "labeler.html").read_text(encoding="utf-8")
+        # Server mode: the labeler loads video/events from the API and saves back.
+        return html.replace("<script>\n(()=>{", f"<script>window.MVA_SERVER={json.dumps({'id': analysis_id})};</script>\n<script>\n(()=>{{", 1)
+
+    @app.get("/api/vocabulary")
+    def vocabulary():
+        return {"event_types": list(EVENT_TYPES)}
+
+    @app.get("/api/analyses")
+    def list_analyses():
+        items = [summary(p) for p in root.iterdir() if (p / "analysis.json").exists()]
+        return sorted(items, key=lambda a: a.get("created_at", ""), reverse=True)
+
+    @app.post("/api/analyses")
+    async def create_analysis(name: str = Form(...), station_id: str = Form("ST01"), operator_id: str = Form(""),
+                              product_id: str = Form(""), available_time_seconds: float = Form(25200),
+                              customer_demand_units: float = Form(600), video: UploadFile | None = File(None),
+                              events: UploadFile | None = File(None)):
+        settings = AnalysisSettings(name=name, station_id=station_id, operator_id=operator_id, product_id=product_id,
+                                    available_time_seconds=available_time_seconds,
+                                    customer_demand_units=customer_demand_units).model_dump()
+        analysis_id = datetime.now().strftime("%Y%m%d_%H%M%S_") + uuid.uuid4().hex[:6]
+        path = root / analysis_id
+        path.mkdir()
+        settings.update({"id": analysis_id, "created_at": _now()})
+        try:
+            if video is not None and video.filename:
+                save_video(path, video, settings)
+            if events is not None and events.filename:
+                save_events(path, (await events.read()).decode("utf-8-sig"), settings)
+        except HTTPException:
+            shutil.rmtree(path)
+            raise
+        _write_json(path / "analysis.json", settings)
+        return summary(path)
+
+    @app.get("/api/analyses/{analysis_id}")
+    def get_analysis(analysis_id: str):
+        return summary(folder(analysis_id))
+
+    @app.patch("/api/analyses/{analysis_id}")
+    def update_analysis(analysis_id: str, patch: SettingsPatch):
+        path = folder(analysis_id)
+        settings = _read_json(path / "analysis.json", {})
+        settings.update(patch.model_dump(exclude_none=True, mode="json"))
+        AnalysisSettings.model_validate(settings)
+        _write_json(path / "analysis.json", settings)
+        return summary(path)
+
+    @app.delete("/api/analyses/{analysis_id}")
+    def delete_analysis(analysis_id: str):
+        shutil.rmtree(folder(analysis_id))
+        return {"deleted": analysis_id}
+
+    @app.put("/api/analyses/{analysis_id}/video")
+    def upload_video(analysis_id: str, video: UploadFile = File(...)):
+        path = folder(analysis_id)
+        settings = _read_json(path / "analysis.json", {})
+        save_video(path, video, settings)
+        _write_json(path / "analysis.json", settings)
+        return summary(path)
+
+    @app.get("/api/analyses/{analysis_id}/video")
+    def get_video(analysis_id: str):
+        video = video_path(folder(analysis_id))
+        if video is None:
+            raise HTTPException(404, "Esta análise ainda não tem vídeo")
+        return FileResponse(video)  # Starlette answers Range requests, so the player can seek.
+
+    @app.get("/api/analyses/{analysis_id}/events", response_class=PlainTextResponse)
+    def get_events(analysis_id: str):
+        events = folder(analysis_id) / "events.csv"
+        return events.read_text(encoding="utf-8-sig") if events.exists() else ""
+
+    @app.put("/api/analyses/{analysis_id}/events")
+    async def put_events(analysis_id: str, request: Request):
+        path = folder(analysis_id)
+        settings = _read_json(path / "analysis.json", {})
+        count = save_events(path, (await request.body()).decode("utf-8-sig"), settings)
+        _write_json(path / "analysis.json", settings)
+        return {"event_count": count, "saved_at": settings["events_updated_at"]}
+
+    @app.post("/api/analyses/{analysis_id}/run")
+    def run(analysis_id: str):
+        path = folder(analysis_id)
+        if not (path / "events.csv").exists():
+            raise HTTPException(400, "Rotule ou importe eventos antes de rodar a análise")
+        settings = _read_json(path / "analysis.json", {})
+        try:
+            events = load_events(path / "events.csv")
+            takt = TaktInput(available_time_seconds=settings["available_time_seconds"], customer_demand_units=settings["customer_demand_units"])
+            metrics, report = run_analysis(events, takt, Thresholds.model_validate(settings.get("thresholds", {})))
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        _write_json(path / "metrics.json", metrics)
+        (path / "relatorio.md").write_text(report, encoding="utf-8")
+        settings["analyzed_at"] = _now()
+        _write_json(path / "analysis.json", settings)
+        return metrics
+
+    @app.get("/api/analyses/{analysis_id}/results")
+    def results(analysis_id: str):
+        metrics = _read_json(folder(analysis_id) / "metrics.json", None)
+        if metrics is None:
+            raise HTTPException(404, "Análise ainda não executada")
+        return metrics
+
+    @app.get("/api/analyses/{analysis_id}/report")
+    def report(analysis_id: str):
+        path = folder(analysis_id) / "relatorio.md"
+        if not path.exists():
+            raise HTTPException(404, "Análise ainda não executada")
+        return FileResponse(path, media_type="text/markdown", filename=f"relatorio_{analysis_id}.md")
+
+    @app.get("/api/analyses/{analysis_id}/feedback")
+    def get_feedback(analysis_id: str):
+        return _read_json(folder(analysis_id) / "feedback.json", [])
+
+    @app.post("/api/analyses/{analysis_id}/feedback")
+    def add_feedback(analysis_id: str, item: Feedback):
+        path = folder(analysis_id)
+        items = _read_json(path / "feedback.json", [])
+        # Append-only: earlier judgments stay as history (they become training labels later).
+        record = {**item.model_dump(), "id": uuid.uuid4().hex[:10], "created_at": _now()}
+        items.append(record)
+        _write_json(path / "feedback.json", items)
+        return record
+
+    return app
+
+
+def serve(data_dir: str, host: str = "127.0.0.1", port: int = 8765, open_browser: bool = False) -> None:
+    import uvicorn
+
+    url = f"http://{host}:{port}/"
+    print(f"Interface MVA em {url}  (dados em {Path(data_dir).resolve()})  — Ctrl+C para encerrar")
+    if open_browser:
+        threading.Timer(1.5, lambda: webbrowser.open(url)).start()
+    uvicorn.run(create_app(data_dir), host=host, port=port, log_level="warning")

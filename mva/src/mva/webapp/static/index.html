@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MVA — Validação</title>
+<link rel="icon" href="data:,">
+<style>
+:root{--bg:#f3f5f8;--card:#fff;--ink:#172033;--muted:#5d6b82;--line:#dce2ea;--accent:#2456c6;--ok:#1d7a46;--warn:#b26a00;--bad:#c0392b;
+ --va:#2f6fdb;--nnva:#7aa6ef;--insp:#8e6cc9;--wait:#e0a100;--search:#e0662f;--motion:#22a39a;--transp:#5f8f3e;--rework:#c0392b;--other:#9aa3b2;
+ font-family:system-ui,"Segoe UI",sans-serif;color:var(--ink);background:var(--bg);font-size:14px}
+*{box-sizing:border-box}body{margin:0}
+header{background:#172033;color:#fff;padding:12px 20px;display:flex;align-items:center;gap:16px}
+header a{color:#fff;text-decoration:none;font-weight:600;font-size:17px}header span{color:#aab4c5;font-size:13px}
+main{max-width:1300px;margin:0 auto;padding:20px}
+h1{font-size:22px;margin:0 0 4px}h2{font-size:16px;margin:0 0 12px}h3{font-size:14px;margin:14px 0 8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:14px}
+.muted{color:var(--muted)}.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.spacer{flex:1}
+.grid{display:grid;gap:14px}.g2{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}.g4{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+button,.btn{font:inherit;border:1px solid var(--line);background:#fff;border-radius:7px;padding:7px 12px;cursor:pointer;color:var(--ink);text-decoration:none;display:inline-block}
+button.primary,.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}button.ok{border-color:var(--ok);color:var(--ok)}button.bad{border-color:var(--bad);color:var(--bad)}
+button:disabled{opacity:.5;cursor:default}
+input,select,textarea{font:inherit;border:1px solid var(--line);border-radius:6px;padding:7px 9px;background:#fff;color:var(--ink);width:100%}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
+.fields{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+table{border-collapse:collapse;width:100%}th,td{border-bottom:1px solid #edf0f4;padding:7px 8px;text-align:left;vertical-align:top}th{font-size:12px;color:var(--muted);font-weight:600}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+.pill{display:inline-block;border-radius:99px;padding:2px 9px;font-size:12px;background:#eef2f8;color:var(--muted)}
+.pill.ok{background:#e3f4ea;color:var(--ok)}.pill.warn{background:#fdf1dc;color:var(--warn)}.pill.bad{background:#fbe5e2;color:var(--bad)}.pill.acc{background:#e5edfb;color:var(--accent)}
+.kpi{border:1px solid var(--line);border-radius:9px;padding:12px}.kpi b{display:block;font-size:22px;font-variant-numeric:tabular-nums}.kpi span{font-size:12px;color:var(--muted)}
+.steps{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 14px}.step{border:1px solid var(--line);border-radius:8px;padding:8px 12px;background:#fff}.step.done{border-color:#9fd3b4;background:#f1faf4}.step.todo{border-style:dashed}
+.list-item{display:flex;flex-wrap:wrap;gap:14px;align-items:center;padding:12px 0;border-bottom:1px solid #edf0f4}.list-item:last-child{border:0}.list-item a{color:var(--ink);font-weight:600;text-decoration:none}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:6px}.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+svg text{font-family:inherit}.chart-wrap{overflow-x:auto}
+.table-wrap{overflow-x:auto}header{flex-wrap:wrap}
+.toast{position:fixed;bottom:18px;right:18px;background:#172033;color:#fff;padding:10px 14px;border-radius:8px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:420px}.toast.show{opacity:1}
+.fb-done{font-size:12px}.err{color:var(--bad)}
+@media (max-width:640px){main{padding:12px}}
+</style>
+</head>
+<body>
+<header><a href="#/">MVA · Validação de análises</a><span>Vídeo → eventos → ciclos → métricas → sua validação</span></header>
+<main id="app"></main>
+<div id="toast" class="toast"></div>
+<script>
+'use strict';
+const $app=document.getElementById('app');
+const BUCKET_COLORS={'VA':'--va','Necessary NVA':'--nnva','Inspection':'--insp','Waiting':'--wait','Search':'--search','Motion':'--motion','Transportation':'--transp','Rework':'--rework','Other':'--other'};
+const ANOMALY_LABEL={above_takt:'Ciclo acima do takt',excessive_search:'Busca excessiva',excessive_waiting:'Espera excessiva',rework_debug:'Retrabalho/debug',incomplete_cycle:'Ciclo incompleto',mad_outlier:'Outlier estatístico (MAD)'};
+const CLASS_LABEL={below:['abaixo do takt','ok'],near:['próximo do takt','acc'],above:['acima do takt','warn'],severely_above:['muito acima do takt','bad']};
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num=(v,d=1)=>v==null||!Number.isFinite(+v)?'—':(+v).toFixed(d).replace('.',',');
+const color=b=>`var(${BUCKET_COLORS[b]||'--other'})`;
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>t.classList.remove('show'),3500)}
+async function api(path,opts={}){const r=await fetch(path,opts);const ct=r.headers.get('content-type')||'';const body=ct.includes('json')?await r.json():await r.text();if(!r.ok)throw new Error(body.detail?(typeof body.detail==='string'?body.detail:JSON.stringify(body.detail)):r.status);return body}
+function author(){try{return localStorage.getItem('mva-author')||''}catch(e){return''}}
+function setAuthor(v){try{localStorage.setItem('mva-author',v)}catch(e){}}
+
+// ---------- Lista ----------
+async function viewList(){
+ const items=await api('/api/analyses');
+ $app.innerHTML=`<div class="row"><h1>Análises</h1><span class="spacer"></span><a class="btn primary" href="#/nova">+ Nova análise</a></div>
+ <p class="muted">Cada análise é um vídeo de um posto. Rotule os eventos, rode a análise e valide os resultados.</p>
+ <section class="card">${items.length?items.map(a=>`<div class="list-item"><div style="flex:1"><a href="#/a/${a.id}">${esc(a.name)}</a><div class="muted">${esc(a.station_id)}${a.product_id?' · '+esc(a.product_id):''} · ${new Date(a.created_at).toLocaleString('pt-BR')}</div></div>
+  <span class="pill">${a.event_count} eventos</span>${a.analyzed?`<span class="pill acc">CT médio ${num(a.statistics.mean)} s</span><span class="pill ${a.anomaly_count?'warn':'ok'}">${a.anomaly_count} anomalias</span>`:'<span class="pill">não analisada</span>'}<span class="pill">${a.feedback_count} validações</span></div>`).join(''):'<p class="muted">Nenhuma análise ainda. Comece com “Nova análise”.</p>'}</section>`;
+}
+
+// ---------- Nova ----------
+function viewNew(){
+ $app.innerHTML=`<h1>Nova análise</h1><p class="muted">O vídeo fica salvo só no seu computador.</p>
+ <form id="f" class="card"><div class="fields">
+  <label class="f">Nome da análise *<input name="name" required placeholder="Ex.: Posto 3 — turno A — 15/10"></label>
+  <label class="f">Posto (station_id)<input name="station_id" value="ST01"></label>
+  <label class="f">Operador (opcional)<input name="operator_id"></label>
+  <label class="f">Produto/modelo (opcional)<input name="product_id"></label>
+  <label class="f">Tempo disponível (s)<input name="available_time_seconds" type="number" step="any" min="1" value="25200"></label>
+  <label class="f">Demanda (unidades)<input name="customer_demand_units" type="number" step="any" min="1" value="600"></label>
+ </div><p>Takt calculado: <b id="takt">42,0 s</b> <span class="muted">= tempo disponível ÷ demanda</span></p>
+ <div class="fields"><label class="f">Vídeo (MP4, MOV, AVI, MKV, WEBM)<input name="video" type="file" accept="video/*"></label>
+ <label class="f">Ou eventos já rotulados (CSV, opcional)<input name="events" type="file" accept=".csv,text/csv"></label></div>
+ <p class="err" id="err"></p><div class="row"><button class="primary" id="go">Criar análise</button><a class="btn" href="#/">Cancelar</a><span class="muted" id="prog"></span></div></form>`;
+ const f=document.getElementById('f');const upd=()=>{const t=f.available_time_seconds.value/f.customer_demand_units.value;document.getElementById('takt').textContent=Number.isFinite(t)?num(t)+' s':'—'};
+ f.oninput=upd;
+ f.onsubmit=e=>{e.preventDefault();const fd=new FormData(f);['video','events'].forEach(k=>{if(!fd.get(k)?.name)fd.delete(k)});
+  // XHR instead of fetch so long videos show upload progress.
+  const x=new XMLHttpRequest();x.open('POST','/api/analyses');document.getElementById('go').disabled=true;
+  x.upload.onprogress=p=>{if(p.lengthComputable)document.getElementById('prog').textContent=`Enviando ${Math.round(100*p.loaded/p.total)}%`};
+  x.onload=()=>{const b=JSON.parse(x.responseText||'{}');if(x.status<300)location.hash='#/a/'+b.id;else{document.getElementById('err').textContent=b.detail||'Erro ao criar';document.getElementById('go').disabled=false}};
+  x.onerror=()=>{document.getElementById('err').textContent='Servidor local fora do ar';document.getElementById('go').disabled=false};x.send(fd)};
+}
+
+// ---------- Charts (SVG) ----------
+function ctChart(m){
+ const cyc=m.cycles.filter(c=>c.complete),takt=m.takt.takt_time_seconds;if(!cyc.length)return'<p class="muted">Sem ciclos completos.</p>';
+ const W=Math.max(520,cyc.length*46+70),H=230,pl=44,pb=34,pt=12,max=Math.max(takt,...cyc.map(c=>c.duration))*1.15,bw=Math.min(34,(W-pl-10)/cyc.length*.7);
+ const y=v=>pt+(H-pt-pb)*(1-v/max),x=i=>pl+(i+.5)*(W-pl-10)/cyc.length;
+ const ticks=[0,.25,.5,.75,1].map(f=>f*max);
+ let s=`<svg width="${W}" height="${H}" role="img" aria-label="Cycle time por ciclo">`;
+ ticks.forEach(t=>s+=`<line x1="${pl}" x2="${W-10}" y1="${y(t)}" y2="${y(t)}" stroke="#edf0f4"/><text x="${pl-6}" y="${y(t)+4}" font-size="11" text-anchor="end" fill="#5d6b82">${Math.round(t)}</text>`);
+ cyc.forEach((c,i)=>{const cls=c.comparison?.classification;const fill=cls==='severely_above'?'var(--bad)':cls==='above'?'var(--wait)':'var(--va)';
+  s+=`<rect x="${x(i)-bw/2}" y="${y(c.duration)}" width="${bw}" height="${y(0)-y(c.duration)}" fill="${fill}" rx="3"><title>${c.cycle_id}: ${num(c.duration)} s</title></rect><text x="${x(i)}" y="${y(c.duration)-4}" font-size="11" text-anchor="middle">${num(c.duration)}</text><text x="${x(i)}" y="${H-pb+15}" font-size="11" text-anchor="middle" fill="#5d6b82">${c.cycle_id.replace('cycle_','C')}</text>`});
+ s+=`<line x1="${pl}" x2="${W-10}" y1="${y(takt)}" y2="${y(takt)}" stroke="var(--bad)" stroke-dasharray="5 4" stroke-width="1.5"/><text x="${W-12}" y="${y(takt)-5}" font-size="11" text-anchor="end" fill="var(--bad)">Takt ${num(takt)} s</text></svg>`;
+ return `<div class="chart-wrap">${s}</div><div class="legend"><span><i style="background:var(--va)"></i>até o takt (+5%)</span><span><i style="background:var(--wait)"></i>acima</span><span><i style="background:var(--bad)"></i>muito acima (&gt;120%)</span></div>`;
+}
+function yamazumiChart(m){
+ const ids=Object.keys(m.yamazumi).filter(id=>m.yamazumi[id].cycle_time!=null);if(!ids.length)return'<p class="muted">Sem ciclos completos.</p>';
+ const buckets=[...new Set(ids.flatMap(id=>Object.keys(m.yamazumi[id].buckets)))].sort((a,b)=>Object.keys(BUCKET_COLORS).indexOf(a)-Object.keys(BUCKET_COLORS).indexOf(b));
+ const cols=[...ids.map(id=>({id,label:id.replace('cycle_','C'),b:m.yamazumi[id].buckets})),{id:'avg',label:'Média',b:m.yamazumi_average}];
+ const takt=m.takt.takt_time_seconds,W=Math.max(520,cols.length*50+70),H=250,pl=44,pb=34,pt=12;
+ const max=Math.max(takt,...cols.map(c=>Object.values(c.b).reduce((a,v)=>a+v,0)))*1.12,bw=Math.min(36,(W-pl-10)/cols.length*.7);
+ const y=v=>pt+(H-pt-pb)*(1-v/max),x=i=>pl+(i+.5)*(W-pl-10)/cols.length;
+ let s=`<svg width="${W}" height="${H}" role="img" aria-label="Yamazumi por ciclo">`;
+ [0,.25,.5,.75,1].map(f=>f*max).forEach(t=>s+=`<line x1="${pl}" x2="${W-10}" y1="${y(t)}" y2="${y(t)}" stroke="#edf0f4"/><text x="${pl-6}" y="${y(t)+4}" font-size="11" text-anchor="end" fill="#5d6b82">${Math.round(t)}</text>`);
+ cols.forEach((c,i)=>{let acc=0;buckets.forEach(b=>{const v=c.b[b]||0;if(!v)return;s+=`<rect x="${x(i)-bw/2}" y="${y(acc+v)}" width="${bw}" height="${y(acc)-y(acc+v)}" fill="${color(b)}" stroke="#fff" stroke-width="1"><title>${c.label} · ${b}: ${num(v)} s</title></rect>`;acc+=v});
+  s+=`<text x="${x(i)}" y="${y(acc)-4}" font-size="11" text-anchor="middle">${num(acc)}</text><text x="${x(i)}" y="${H-pb+15}" font-size="11" text-anchor="middle" fill="#5d6b82" ${c.id==='avg'?'font-weight="600"':''}>${c.label}</text>`});
+ s+=`<line x1="${pl}" x2="${W-10}" y1="${y(takt)}" y2="${y(takt)}" stroke="var(--bad)" stroke-dasharray="5 4" stroke-width="1.5"/><text x="${W-12}" y="${y(takt)-5}" font-size="11" text-anchor="end" fill="var(--bad)">Takt</text></svg>`;
+ return `<div class="chart-wrap">${s}</div><div class="legend">${buckets.map(b=>`<span><i style="background:${color(b)}"></i>${b}</span>`).join('')}</div>`;
+}
+
+// ---------- Detalhe ----------
+async function viewAnalysis(id){
+ const [a,feedback]=await Promise.all([api(`/api/analyses/${id}`),api(`/api/analyses/${id}/feedback`)]);
+ let m=null;if(a.analyzed)m=await api(`/api/analyses/${id}/results`);
+ const last={};feedback.forEach(f=>last[f.target_type+':'+f.target_id]=f);
+ const th=a.thresholds||{};
+ const stepCls=ok=>ok?'step done':'step todo';
+ $app.innerHTML=`<div class="row"><div><a href="#/" class="muted" style="text-decoration:none">← Análises</a><h1>${esc(a.name)}</h1><div class="muted">${esc(a.station_id)}${a.operator_id?' · operador '+esc(a.operator_id):''}${a.product_id?' · '+esc(a.product_id):''}</div></div><span class="spacer"></span><button class="bad" id="del">Excluir análise</button></div>
+ <div class="steps"><div class="${stepCls(a.has_video)}">1. Vídeo ${a.has_video?'✓':''}</div><div class="${stepCls(a.event_count)}">2. Eventos rotulados ${a.event_count?'('+a.event_count+')':''}</div><div class="${stepCls(a.analyzed&&!a.result_stale)}">3. Análise ${a.result_stale?'(desatualizada)':a.analyzed?'✓':''}</div><div class="${stepCls(a.feedback_count)}">4. Sua validação ${a.feedback_count?'('+a.feedback_count+')':''}</div></div>
+ <div class="grid g2">
+ <section class="card"><h2>1–2. Vídeo e eventos</h2>
+  <p>${a.has_video?`Vídeo: <b>${esc(a.video_filename)}</b>`:'<span class="muted">Sem vídeo ainda.</span>'}</p>
+  <div class="row"><a class="btn primary" href="/labeler/${id}">Abrir rotulagem</a>
+  <label class="btn">${a.has_video?'Trocar':'Enviar'} vídeo<input type="file" id="vid" accept="video/*" hidden></label>
+  <label class="btn">Importar CSV de eventos<input type="file" id="csv" accept=".csv,text/csv" hidden></label>
+  ${a.has_events?`<a class="btn" href="/api/analyses/${id}/events" download="${id}_events.csv">Baixar CSV</a>`:''}</div>
+  <p class="muted">Na rotulagem: <b>S</b> início do ciclo, <b>E</b> fim, <b>1</b> pick, <b>3</b> assemble, <b>4</b> fasten, <b>8</b> inspect, <b>Q</b> search, <b>A</b> wait, <b>D</b> rework. Salva sozinho.</p>
+ </section>
+ <section class="card"><h2>Parâmetros</h2><form id="params"><div class="fields">
+  <label class="f">Tempo disponível (s)<input name="available_time_seconds" type="number" step="any" min="1" value="${a.available_time_seconds}"></label>
+  <label class="f">Demanda (un.)<input name="customer_demand_units" type="number" step="any" min="1" value="${a.customer_demand_units}"></label>
+  <label class="f">Limite de busca (s)<input name="search_seconds" type="number" step="any" min="0" value="${th.search_seconds??5}"></label>
+  <label class="f">Limite de espera (s)<input name="waiting_seconds" type="number" step="any" min="0" value="${th.waiting_seconds??5}"></label>
+  <label class="f">Faixa "próximo do takt" (%)<input name="near_pct" type="number" step="any" min="0" value="${Math.round((th.near_fraction??.05)*100)}"></label>
+  <label class="f">"Muito acima" a partir de (%)<input name="severe_pct" type="number" step="any" min="101" value="${Math.round((th.severe_ratio??1.2)*100)}"></label>
+ </div><p>Takt: <b>${num(a.takt_time_seconds)} s</b></p><div class="row"><button class="primary" id="run" ${a.event_count?'':'disabled'}>${a.analyzed?'Salvar e rodar de novo':'Salvar e rodar análise'}</button></div></form></section>
+ </div>
+ <div id="results">${m?renderResults(id,m,last):'<section class="card muted">Rode a análise para ver ciclos, Yamazumi e anomalias.</section>'}</div>
+ <section class="card"><h2>Observações gerais</h2><p class="muted">Tudo o que você registra aqui fica no histórico da análise e vira base para melhorar o modelo.</p>
+  <div class="fields"><label class="f">Seu nome<input id="author" value="${esc(author())}"></label></div><h3></h3>
+  <textarea id="note" rows="3" placeholder="Ex.: o operador parou por falta de material no ciclo 5; a câmera não mostra a mão esquerda…"></textarea>
+  <div class="row" style="margin-top:8px"><button id="saveNote" class="primary">Registrar observação</button></div>
+  ${feedback.filter(f=>f.target_type==='general').reverse().map(f=>`<p class="fb-done">“${esc(f.comment)}” <span class="muted">— ${esc(f.author||'sem nome')}, ${new Date(f.created_at).toLocaleString('pt-BR')}</span></p>`).join('')}
+ </section>`;
+ document.getElementById('author').onchange=e=>setAuthor(e.target.value);
+ document.getElementById('del').onclick=async()=>{if(!confirm('Excluir esta análise, o vídeo e as validações? Não dá para desfazer.'))return;await api(`/api/analyses/${id}`,{method:'DELETE'});location.hash='#/'};
+ document.getElementById('vid').onchange=async e=>{const fd=new FormData();fd.append('video',e.target.files[0]);toast('Enviando vídeo…');try{await api(`/api/analyses/${id}/video`,{method:'PUT',body:fd});toast('Vídeo salvo');route()}catch(err){toast('Erro: '+err.message)}};
+ document.getElementById('csv').onchange=async e=>{try{const r=await api(`/api/analyses/${id}/events`,{method:'PUT',headers:{'Content-Type':'text/csv'},body:await e.target.files[0].text()});toast(r.event_count+' eventos importados');route()}catch(err){toast('CSV inválido: '+err.message)}};
+ document.getElementById('params').onsubmit=async e=>{e.preventDefault();const f=e.target;try{
+  await api(`/api/analyses/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({available_time_seconds:+f.available_time_seconds.value,customer_demand_units:+f.customer_demand_units.value,thresholds:{search_seconds:+f.search_seconds.value,waiting_seconds:+f.waiting_seconds.value,near_fraction:f.near_pct.value/100,severe_ratio:f.severe_pct.value/100,mad_z:th.mad_z??3.5}})});
+  await api(`/api/analyses/${id}/run`,{method:'POST'});toast('Análise concluída');route()}catch(err){toast('Erro: '+err.message)}};
+ document.getElementById('saveNote').onclick=async()=>{const c=document.getElementById('note').value.trim();if(!c)return;await sendFeedback(id,{target_type:'general',comment:c});route()};
+ bindFeedback(id);
+}
+async function sendFeedback(id,body){setAuthor(document.getElementById('author')?.value||author());return api(`/api/analyses/${id}/feedback`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({author:author(),...body})})}
+function fbBadge(f){if(!f)return'';const lab={confirmado:['confirmado','ok'],rejeitado:['rejeitado','bad'],corrigir:['corrigir','warn']}[f.verdict]||['registrado','acc'];return `<span class="pill ${lab[1]}">${lab[0]}</span>${f.comment?` <span class="muted fb-done">“${esc(f.comment)}”</span>`:''}`}
+function renderResults(id,m,last){
+ const st=m.statistics,takt=m.takt.takt_time_seconds,above=m.cycles.filter(c=>c.comparison&&['above','severely_above'].includes(c.comparison.classification)).length;
+ const firstEvt={};(m.events||[]).forEach(e=>{if(e.cycle_id&&!(e.cycle_id in firstEvt))firstEvt[e.cycle_id]=e.start_time});
+ return `<section class="card"><div class="row"><h2 style="margin:0">3. Resultado</h2><span class="spacer"></span><a class="btn" href="/api/analyses/${id}/report">Baixar relatório (.md)</a></div>
+ <div class="grid g4" style="margin-top:12px"><div class="kpi"><span>Takt</span><b>${num(takt)} s</b></div><div class="kpi"><span>CT médio</span><b>${num(st.mean)} s</b></div><div class="kpi"><span>CT mediana · P90</span><b>${num(st.median)} · ${num(st.p90)} s</b></div><div class="kpi"><span>Ciclos completos</span><b>${st.n}</b></div><div class="kpi"><span>Ciclos acima do takt</span><b>${above}</b></div><div class="kpi"><span>Anomalias</span><b>${m.anomalies.length}</b></div></div></section>
+ <div class="grid g2"><section class="card"><h2>Cycle time por ciclo</h2>${ctChart(m)}</section><section class="card"><h2>Yamazumi (s por categoria)</h2>${yamazumiChart(m)}</section></div>
+ <section class="card"><h2>4. Valide as anomalias</h2><p class="muted">Confirme o que é real, rejeite falsos alarmes. “Ver no vídeo” abre a rotulagem no início do ciclo.</p>
+ ${m.anomalies.length?`<div class="table-wrap"><table><thead><tr><th>Anomalia</th><th>Ciclo</th><th class="n">Valor</th><th>Evidência</th><th>Sua avaliação</th></tr></thead><tbody>${m.anomalies.map((an,i)=>{const key=an.anomaly_type+'@'+an.cycle_ids.join(','),f=last['anomaly:'+key],cid=an.cycle_ids[0];
+  return `<tr><td><b>${ANOMALY_LABEL[an.anomaly_type]||an.anomaly_type}</b><div class="muted">${esc(an.description)}</div></td><td>${esc(an.cycle_ids.join(', '))}<div><a href="/labeler/${id}?t=${firstEvt[cid]??0}">Ver no vídeo</a></div></td><td class="n">${an.value!=null?num(an.value)+(an.anomaly_type==='mad_outlier'?' z':' s'):'—'}${an.threshold!=null?`<div class="muted">limite ${num(an.threshold)}</div>`:''}</td><td><span class="pill">${an.evidence_class}</span><div class="muted" style="font-size:12px">${esc(an.event_ids.slice(0,6).join(', '))}${an.event_ids.length>6?'…':''}</div></td>
+  <td><div class="row"><button class="ok" data-fb="anomaly" data-key="${esc(key)}" data-v="confirmado">Confirmar</button><button class="bad" data-fb="anomaly" data-key="${esc(key)}" data-v="rejeitado">Rejeitar</button></div><input placeholder="Comentário (opcional)" data-comment="${esc(key)}" style="margin-top:6px"><div style="margin-top:4px">${fbBadge(f)}</div></td></tr>`}).join('')}</tbody></table></div>`:'<p class="muted">Nenhuma regra sinalizou anomalias.</p>'}</section>
+ <section class="card"><h2>5. Confira os ciclos contra a sua cronometragem</h2><p class="muted">Digite o tempo que você mediu (cronômetro ou vídeo). A diferença mostra se a segmentação está batendo.</p>
+ <div class="table-wrap"><table><thead><tr><th>Ciclo</th><th class="n">Início (s)</th><th class="n">CT sistema (s)</th><th>Situação</th><th class="n">Seu CT (s)</th><th class="n">Diferença</th><th>Ciclo correto?</th></tr></thead><tbody>${m.cycles.map(c=>{const man=last['manual_ct:'+c.cycle_id],ok=last['cycle:'+c.cycle_id],cls=c.comparison?CLASS_LABEL[c.comparison.classification]:['incompleto',''];const diff=man&&c.duration!=null?man.value-c.duration:null;
+  return `<tr><td>${c.cycle_id}<div><a href="/labeler/${id}?t=${c.start_time}">Ver no vídeo</a></div></td><td class="n">${num(c.start_time)}</td><td class="n">${num(c.duration)}</td><td><span class="pill ${cls[1]}">${cls[0]}</span></td>
+  <td class="n"><input type="number" step="any" min="0" style="width:90px;text-align:right" data-manual="${c.cycle_id}" value="${man?.value??''}"></td><td class="n">${diff==null?'—':`<span class="${Math.abs(diff)>Math.max(1,0.05*c.duration)?'err':''}">${diff>0?'+':''}${num(diff)} s</span>`}</td>
+  <td><div class="row"><button class="ok" data-fb="cycle" data-key="${c.cycle_id}" data-v="confirmado">Sim</button><button class="bad" data-fb="cycle" data-key="${c.cycle_id}" data-v="corrigir">Corrigir</button></div><div style="margin-top:4px">${fbBadge(ok)}</div></td></tr>`}).join('')}</tbody></table></div></section>`;
+}
+function bindFeedback(id){
+ document.querySelectorAll('[data-fb]').forEach(b=>b.onclick=async()=>{const key=b.dataset.key,comment=document.querySelector(`[data-comment="${CSS.escape(key)}"]`)?.value||'';
+  const c=b.dataset.v==='corrigir'?prompt('O que precisa corrigir neste ciclo? (ex.: o fim está 2 s adiantado)')??'':comment;
+  await sendFeedback(id,{target_type:b.dataset.fb,target_id:key,verdict:b.dataset.v,comment:c});toast('Validação registrada');route()});
+ document.querySelectorAll('[data-manual]').forEach(inp=>inp.onchange=async()=>{if(inp.value==='')return;await sendFeedback(id,{target_type:'manual_ct',target_id:inp.dataset.manual,value:+inp.value});toast('Cronometragem registrada');route()});
+}
+
+// ---------- Router ----------
+async function route(){const h=location.hash||'#/';try{if(h==='#/nova')viewNew();else if(h.startsWith('#/a/'))await viewAnalysis(h.slice(4));else await viewList()}catch(e){$app.innerHTML=`<section class="card"><h2>Algo deu errado</h2><p class="err">${esc(e.message)}</p><a class="btn" href="#/">Voltar</a></section>`}}
+addEventListener('hashchange',route);route();
+</script>
+</body>
+</html>
