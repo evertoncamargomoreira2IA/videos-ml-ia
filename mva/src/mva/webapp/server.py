@@ -446,7 +446,7 @@ def create_app(data_dir: str | Path, seed_demo: bool = False) -> FastAPI:
         _write_json(path / "feedback.json", items)
         return record
 
-    if seed_demo and not any(root.iterdir()) and not (Path(data_dir) / ".demo_criada").exists():
+    if seed_demo and not (Path(data_dir) / ".demo_criada").exists():
         try:
             create_demo()
         finally:

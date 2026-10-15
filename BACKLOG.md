@@ -46,6 +46,13 @@ Status: ✅ pronto · 🔄 em andamento · ⏳ próximo · ⬜ planejado
 - [x] Exportar frames rotulados como dataset de ML (pasta por atividade + frame_labels.csv + .zip)
 - [x] Visual novo da interface
 
+## Sprint 4b — Layout profissional ✅ (aguardando validação)
+- [x] Menu lateral (Painel, Análises, Nova análise, Cadastros: Atividades e Postos) e Configurações no canto superior direito
+- [x] Cadastro de postos (takt e CT padrão preenchem a nova análise)
+- [x] Configurações: usuário, padrões, limites de anomalia, dataset
+- [x] Análise de demonstração com vídeo sintético criada no primeiro início
+- [x] Detalhe da análise em abas (Resumo, Vídeo e rotulagem, Validação, Parâmetros)
+
 ## Sprint 4 — Robustez do piloto ⏳
 - [ ] Editar os limites de ciclo direto na timeline (arrastar início/fim)
 - [ ] Sequência padrão (eSOP) por posto e desvio de sequência como anomalia
