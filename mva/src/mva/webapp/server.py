@@ -18,6 +18,7 @@ from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 
+from ..catalog import DEFAULT_CATALOG, ROLES, VALUE_CLASSES, Catalog, load_catalog, save_catalog
 from ..io import load_events
 from ..models import EVENT_TYPES, TaktInput
 from ..pipeline import Thresholds, run_analysis
@@ -33,6 +34,7 @@ class AnalysisSettings(BaseModel):
     product_id: str = ""
     takt_time_seconds: float = Field(default=42, gt=0)
     standard_cycle_time_seconds: float | None = Field(default=None, gt=0)
+    video_fps: float | None = Field(default=None, gt=0)
     thresholds: Thresholds = Field(default_factory=Thresholds)
     notes: str = ""
 
@@ -45,6 +47,7 @@ class SettingsPatch(BaseModel):
     takt_time_seconds: float | None = Field(default=None, gt=0)
     standard_cycle_time_seconds: float | None = Field(default=None, gt=0)
     clear_standard_cycle_time: bool = False
+    video_fps: float | None = Field(default=None, gt=0)
     thresholds: Thresholds | None = None
     notes: str | None = None
 
@@ -81,7 +84,23 @@ def takt_input(settings: dict) -> TaktInput:
                      standard_cycle_time_seconds=settings.get("standard_cycle_time_seconds"))
 
 
+def _video_meta(path: Path) -> dict:
+    """fps e nº de frames via OpenCV; vazio se o OpenCV não estiver instalado ou não abrir."""
+    try:
+        import cv2
+    except ImportError:
+        return {}
+    cap = cv2.VideoCapture(str(path))
+    try:
+        fps = float(cap.get(cv2.CAP_PROP_FPS)) if cap.isOpened() else 0
+        count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) if cap.isOpened() else 0
+    finally:
+        cap.release()
+    return {"video_fps": fps, "video_frame_count": count} if fps > 0 else {}
+
+
 def create_app(data_dir: str | Path) -> FastAPI:
+    catalog_path = Path(data_dir) / "catalog.json"
     root = Path(data_dir) / "analyses"
     root.mkdir(parents=True, exist_ok=True)
     app = FastAPI(title="MVA — validação local")
@@ -126,6 +145,8 @@ def create_app(data_dir: str | Path) -> FastAPI:
         with (path / f"video{ext}").open("wb") as out:
             shutil.copyfileobj(upload.file, out, 1024 * 1024)
         settings["video_original_name"] = upload.filename
+        settings.pop("video_frame_count", None)
+        settings.update(_video_meta(path / f"video{ext}"))
 
     def save_events(path: Path, text: str, settings: dict) -> int:
         target = path / "events.csv"
@@ -154,6 +175,20 @@ def create_app(data_dir: str | Path) -> FastAPI:
     @app.get("/api/vocabulary")
     def vocabulary():
         return {"event_types": list(EVENT_TYPES)}
+
+    @app.get("/api/catalog")
+    def get_catalog():
+        return {**load_catalog(catalog_path).model_dump(), "value_classes": VALUE_CLASSES, "roles": ROLES}
+
+    @app.put("/api/catalog")
+    def put_catalog(catalog: Catalog):
+        save_catalog(catalog_path, catalog)
+        return get_catalog()
+
+    @app.post("/api/catalog/reset")
+    def reset_catalog():
+        save_catalog(catalog_path, DEFAULT_CATALOG)
+        return get_catalog()
 
     @app.get("/api/analyses")
     def list_analyses():
@@ -241,7 +276,8 @@ def create_app(data_dir: str | Path) -> FastAPI:
         try:
             events = load_events(path / "events.csv")
             takt = takt_input(settings)
-            metrics, report = run_analysis(events, takt, Thresholds.model_validate(settings.get("thresholds", {})))
+            metrics, report = run_analysis(events, takt, Thresholds.model_validate(settings.get("thresholds", {})),
+                                           load_catalog(catalog_path))
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
         _write_json(path / "metrics.json", metrics)
@@ -263,6 +299,40 @@ def create_app(data_dir: str | Path) -> FastAPI:
         if not path.exists():
             raise HTTPException(404, "Análise ainda não executada")
         return FileResponse(path, media_type="text/markdown", filename=f"relatorio_{analysis_id}.md")
+
+    @app.post("/api/analyses/{analysis_id}/dataset")
+    def build_dataset(analysis_id: str, step: int = 5, width: int = 320):
+        path = folder(analysis_id)
+        video = video_path(path)
+        if video is None or not (path / "events.csv").exists():
+            raise HTTPException(400, "A análise precisa de vídeo e de atividades rotuladas")
+        try:
+            from ..dataset import export_frame_dataset
+        except ImportError as exc:
+            raise HTTPException(500, "OpenCV não instalado") from exc
+        try:
+            result = export_frame_dataset(video, load_events(path / "events.csv"), path / "dataset", step=step,
+                                          width=width or None, catalog=load_catalog(catalog_path), prefix=f"{analysis_id}_")
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        result["folder"] = str((path / "dataset").resolve())
+        _write_json(path / "dataset" / "summary.json", result)
+        return result
+
+    @app.get("/api/analyses/{analysis_id}/dataset")
+    def dataset_summary(analysis_id: str):
+        summary_file = folder(analysis_id) / "dataset" / "summary.json"
+        if not summary_file.exists():
+            raise HTTPException(404, "Dataset ainda não exportado")
+        return _read_json(summary_file, {})
+
+    @app.get("/api/analyses/{analysis_id}/dataset.zip")
+    def dataset_zip(analysis_id: str):
+        path = folder(analysis_id)
+        if not (path / "dataset" / "summary.json").exists():
+            raise HTTPException(404, "Dataset ainda não exportado")
+        archive = shutil.make_archive(str(path / "dataset_export"), "zip", path / "dataset")
+        return FileResponse(archive, media_type="application/zip", filename=f"dataset_{analysis_id}.zip")
 
     @app.get("/api/analyses/{analysis_id}/feedback")
     def get_feedback(analysis_id: str):

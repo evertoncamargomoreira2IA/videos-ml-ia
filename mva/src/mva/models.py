@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -30,11 +31,15 @@ class Event(BaseModel):
     source: Literal["vision_model", "manual", "rule"]
     human_verified: bool
     model_version: str | None = None
+    # Frames do vídeo (rotulagem por frame); o tempo continua sendo a referência das métricas.
+    start_frame: int | None = Field(default=None, ge=0)
+    end_frame: int | None = Field(default=None, ge=0)
 
     @model_validator(mode="after")
     def validate_times(self):
-        if self.event_type not in EVENT_TYPES:
-            raise ValueError(f"event_type inválido: {self.event_type}")
+        # Atividades vêm do catálogo editável; EVENT_TYPES é só o vocabulário inicial.
+        if not re.fullmatch(r"[a-z0-9_]{2,30}", self.event_type):
+            raise ValueError(f"event_type inválido: {self.event_type} (use letras minúsculas, números e _)")
         if self.end_time < self.start_time:
             raise ValueError("end_time deve ser maior ou igual a start_time")
         if abs((self.end_time - self.start_time) - self.duration) > 0.01:

@@ -9,8 +9,8 @@ def _takt_line(takt: TaktInput) -> str:
     return f"- Takt informado: {takt.takt_time_seconds:.2f} s."
 
 
-def render_report(cycles: list[Cycle], events: list[Event], stats: CycleMetrics, takt: TaktInput, anomalies: list[AnomalyFlag]) -> str:
-    y = yamazumi(cycles, events)
+def render_report(cycles: list[Cycle], events: list[Event], stats: CycleMetrics, takt: TaktInput, anomalies: list[AnomalyFlag], mapping: dict[str, str] | None = None) -> str:
+    y = yamazumi(cycles, events, mapping)
     lines = ["# Relatório de análise de manufatura", "", "## Resumo", f"- Ciclos completos: {stats.n}; ciclos incompletos: {sum(not c.complete for c in cycles)}.", _takt_line(takt), *([f"- CT padrão: {takt.standard_cycle_time_seconds:.2f} s."] if takt.standard_cycle_time_seconds else []), f"- Cycle Time médio: {stats.mean:.2f} s." if stats.mean is not None else "- Cycle Time médio: sem ciclos completos.", "", "## Ciclos", "| Ciclo | Início (s) | Fim (s) | CT (s) | Estado | Comparação takt |", "|---|---:|---:|---:|---|---|"]
     for c in cycles:
         comp = classify_cycle_time(c.duration, takt.takt_time_seconds) if c.complete and c.duration is not None else None
